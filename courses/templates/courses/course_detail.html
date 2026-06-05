@@ -1,0 +1,141 @@
+{% extends 'base.html' %}
+{% block title %}{{ course.title }}{% endblock %}
+
+{% block content %}
+
+<!-- Course Header -->
+<div class="course-detail-header">
+  <div class="container">
+    <div class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="sep">›</span>
+      <a href="{% url 'course_list' %}">Courses</a>
+      <span class="sep">›</span>
+      <span>{{ course.title }}</span>
+    </div>
+
+    <div class="course-detail-layout">
+      <!-- Left: Course Info -->
+      <div>
+        <div class="flex gap-1 mb-2" style="margin-bottom:12px;">
+          <span class="badge badge-teal">
+            <span class="level-indicator level-{{ course.level }}"></span>
+            {{ course.get_level_display }}
+          </span>
+          {% if is_enrolled %}
+            <span class="badge badge-green">✅ Enrolled</span>
+          {% endif %}
+        </div>
+
+        <h1 style="font-size:clamp(1.5rem,3vw,2.5rem);margin-bottom:16px;">{{ course.title }}</h1>
+        <p style="font-size:1.05rem;line-height:1.7;color:var(--text-2);margin-bottom:24px;">
+          {{ course.short_description }}
+        </p>
+
+        <!-- Teacher -->
+        <div class="teacher-card" style="margin-bottom:24px;">
+          <div class="teacher-avatar">
+            {% if course.teacher.profile_picture %}
+              <img src="{{ course.teacher.profile_picture.url }}" alt="{{ course.teacher.get_full_name }}">
+            {% else %}
+              {{ course.teacher.first_name|first|upper }}{{ course.teacher.last_name|first|upper }}
+            {% endif %}
+          </div>
+          <div>
+            <p style="font-size:.78rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;">Your Teacher</p>
+            <h4 style="margin-bottom:3px;">{{ course.teacher.get_full_name|default:course.teacher.username }}</h4>
+            {% if course.teacher.bio %}
+              <p style="font-size:.88rem;">{{ course.teacher.bio|truncatewords:20 }}</p>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Stats row -->
+        <div class="flex gap-3 flex-wrap" style="margin-bottom:28px;">
+          <div>
+            <div style="font-size:.78rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;">Duration</div>
+            <div style="font-weight:600;color:var(--text);">⏱ {{ course.duration }}</div>
+          </div>
+          <div>
+            <div style="font-size:.78rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;">Lessons</div>
+            <div style="font-weight:600;color:var(--text);">📚 {{ course.lesson_count }}</div>
+          </div>
+          <div>
+            <div style="font-size:.78rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;">Students</div>
+            <div style="font-weight:600;color:var(--text);">👥 {{ course.enrollment_count }}</div>
+          </div>
+          <div>
+            <div style="font-size:.78rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;">Level</div>
+            <div style="font-weight:600;color:var(--text);">{{ course.get_level_display }}</div>
+          </div>
+        </div>
+
+        <!-- Full Description -->
+        <h3 style="margin-bottom:12px;">About This Course</h3>
+        <div style="color:var(--text-2);line-height:1.85;white-space:pre-wrap;">{{ course.full_description }}</div>
+      </div>
+
+      <!-- Right: Sticky Sidebar -->
+      <div>
+        <div class="course-sidebar-card">
+          {% if course.thumbnail %}
+            <img src="{{ course.thumbnail.url }}" alt="{{ course.title }}" class="course-sidebar-thumb">
+          {% else %}
+            <div style="width:100%;aspect-ratio:16/9;background:linear-gradient(135deg,var(--primary-l),var(--primary));display:flex;align-items:center;justify-content:center;font-size:3rem;opacity:.6;">📖</div>
+          {% endif %}
+
+          <div class="course-sidebar-body">
+            {% if is_enrolled %}
+              <div class="alert alert-success" style="margin-bottom:14px;cursor:default;">
+                ✅ You're enrolled in this course
+              </div>
+              {% if lessons %}
+                <a href="{% url 'lesson_view' course.slug lessons.first.id %}" class="btn btn-primary" style="width:100%;justify-content:center;margin-bottom:12px;">
+                  Continue Learning →
+                </a>
+              {% endif %}
+            {% elif user.is_authenticated and user.is_student %}
+              <form method="post" action="{% url 'enroll' course.slug %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-gold" style="width:100%;justify-content:center;font-size:1rem;padding:13px;">
+                  Enroll Now — Free
+                </button>
+              </form>
+            {% elif not user.is_authenticated %}
+              <a href="{% url 'login' %}" class="btn btn-primary" style="width:100%;justify-content:center;margin-bottom:8px;">
+                Sign In to Enroll
+              </a>
+              <a href="{% url 'register' %}" class="btn btn-outline btn-sm" style="width:100%;justify-content:center;">
+                Create Free Account
+              </a>
+            {% endif %}
+
+            <div class="divider"></div>
+
+            <h4 style="margin-bottom:12px;">Course Contents</h4>
+            {% if lessons %}
+              <ul class="lesson-list">
+                {% for lesson in lessons %}
+                  <li class="lesson-item">
+                    <span class="lesson-num">{{ forloop.counter }}</span>
+                    {% if is_enrolled %}
+                      <a href="{% url 'lesson_view' course.slug lesson.id %}" style="color:var(--text-2);flex:1;">{{ lesson.title }}</a>
+                    {% else %}
+                      <span style="flex:1;">{{ lesson.title }}</span>
+                    {% endif %}
+                    {% if lesson.video_url %}🎬{% endif %}
+                    {% if lesson.note_content %}📝{% endif %}
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p style="color:var(--text-3);font-size:.9rem;text-align:center;padding:16px 0;">Lessons coming soon</p>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

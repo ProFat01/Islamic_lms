@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}Delete Lesson{% endblock %}
+
+{% block content %}
+<div class="section-sm">
+  <div class="container">
+    <div class="confirm-card">
+      <div class="icon">⚠️</div>
+      <h2 style="margin-bottom:10px;">Delete Lesson</h2>
+      <p style="margin-bottom:6px;">Are you sure you want to delete:</p>
+      <p style="font-weight:700;color:var(--text);font-size:1.05rem;margin-bottom:20px;">
+        "{{ lesson.title }}"
+      </p>
+      <p style="font-size:.9rem;color:var(--text-3);margin-bottom:28px;">
+        From course: <strong>{{ course.title }}</strong><br>
+        This action cannot be undone.
+      </p>
+      <div class="flex-center gap-2">
+        <form method="post">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-danger">Yes, Delete Lesson</button>
+        </form>
+        <a href="{% url 'course_manage' course.slug %}" class="btn btn-ghost">Cancel</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

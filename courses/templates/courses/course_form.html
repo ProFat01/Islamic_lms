@@ -1,0 +1,106 @@
+{% extends 'base.html' %}
+{% block title %}{{ action }} Course{% endblock %}
+
+{% block content %}
+<div class="section-sm">
+  <div class="container" style="max-width:760px;">
+
+    <div class="breadcrumb">
+      <a href="{% url 'teacher_dashboard' %}">Dashboard</a>
+      <span class="sep">›</span>
+      {% if course %}
+        <a href="{% url 'course_manage' course.slug %}">{{ course.title }}</a>
+        <span class="sep">›</span>
+        <span>Edit Course</span>
+      {% else %}
+        <span>Create Course</span>
+      {% endif %}
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <h2 style="margin-bottom:6px;">{{ action }} Course</h2>
+        <p style="margin-bottom:24px;color:var(--text-3);">
+          {% if action == 'Create' %}
+            Fill in the details below to create a new Islamic course.
+          {% else %}
+            Update the course details below.
+          {% endif %}
+        </p>
+
+        <form method="post" enctype="multipart/form-data" novalidate>
+          {% csrf_token %}
+
+          <div class="form-group">
+            <label class="form-label">Course Title *</label>
+            {{ form.title }}
+            {% for error in form.title.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+          </div>
+
+          <div class="grid-2" style="gap:16px;">
+            <div class="form-group">
+              <label class="form-label">Level *</label>
+              {{ form.level }}
+              {% for error in form.level.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+            </div>
+            <div class="form-group">
+              <label class="form-label">Duration *</label>
+              {{ form.duration }}
+              {% for error in form.duration.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Short Description *</label>
+            {{ form.short_description }}
+            <p class="form-hint">Shown on course cards. Keep it clear and enticing (max 300 chars).</p>
+            {% for error in form.short_description.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Full Description *</label>
+            {{ form.full_description }}
+            <p class="form-hint">Detailed overview shown on the course detail page. Explain what students will learn.</p>
+            {% for error in form.full_description.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Course Thumbnail</label>
+            {% if course and course.thumbnail %}
+              <div style="margin-bottom:10px;">
+                <img src="{{ course.thumbnail.url }}" alt="Current thumbnail" style="height:80px;border-radius:6px;object-fit:cover;">
+                <p class="form-hint">Current thumbnail — upload a new one to replace it.</p>
+              </div>
+            {% endif %}
+            {{ form.thumbnail }}
+            <p class="form-hint">Recommended: 16:9 aspect ratio, JPG or PNG.</p>
+          </div>
+
+          <div class="form-group">
+            <label class="form-check">
+              {{ form.is_published }}
+              <span class="form-label" style="margin-bottom:0;cursor:pointer;">Publish this course (make it visible to students)</span>
+            </label>
+            <p class="form-hint" style="margin-left:26px;">You can save as a draft first and publish when ready.</p>
+          </div>
+
+          <div class="flex gap-2" style="margin-top:8px;">
+            <button type="submit" class="btn btn-primary">
+              {% if action == 'Create' %}Create Course{% else %}Save Changes{% endif %}
+            </button>
+            <a href="{% url 'teacher_dashboard' %}" class="btn btn-ghost">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  document.querySelectorAll('form input[type="text"], form input[type="url"], form textarea, form select').forEach(function(el) {
+    el.classList.add('form-control');
+  });
+</script>
+{% endblock %}

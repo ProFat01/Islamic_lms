@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+{% block title %}Manage — {{ course.title }}{% endblock %}
+
+{% block content %}
+<div class="section-sm">
+  <div class="container">
+
+    <div class="breadcrumb">
+      <a href="{% url 'teacher_dashboard' %}">Dashboard</a>
+      <span class="sep">›</span>
+      <span>{{ course.title }}</span>
+    </div>
+
+    <!-- Course Header Card -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:24px;display:flex;align-items:flex-start;gap:20px;flex-wrap:wrap;">
+      {% if course.thumbnail %}
+        <img src="{{ course.thumbnail.url }}" alt="" style="width:120px;height:80px;object-fit:cover;border-radius:8px;flex-shrink:0;">
+      {% else %}
+        <div style="width:120px;height:80px;background:var(--primary-l);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:2rem;flex-shrink:0;">📖</div>
+      {% endif %}
+      <div style="flex:1;min-width:200px;">
+        <div class="flex gap-1 mb-1" style="margin-bottom:8px;">
+          <span class="badge badge-teal">{{ course.get_level_display }}</span>
+          {% if course.is_published %}
+            <span class="badge badge-green">Published</span>
+          {% else %}
+            <span class="badge badge-gray">Draft</span>
+          {% endif %}
+        </div>
+        <h2 style="margin-bottom:4px;font-size:1.4rem;">{{ course.title }}</h2>
+        <p style="font-size:.9rem;">⏱ {{ course.duration }} &nbsp;·&nbsp; 📚 {{ lessons.count }} lessons &nbsp;·&nbsp; 👥 {{ course.enrollment_count }} students</p>
+      </div>
+      <div class="flex gap-2" style="flex-shrink:0;">
+        <a href="{% url 'course_edit' course.slug %}" class="btn btn-outline btn-sm">✏️ Edit Course</a>
+        <a href="{% url 'course_detail' course.slug %}" class="btn btn-ghost btn-sm" target="_blank">👁 Preview</a>
+      </div>
+    </div>
+
+    <!-- Lessons Table -->
+    <div class="action-bar">
+      <h3>Lessons ({{ lessons.count }})</h3>
+      <a href="{% url 'lesson_create' course.slug %}" class="btn btn-primary btn-sm">+ Add Lesson</a>
+    </div>
+
+    {% if lessons %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Lesson Title</th>
+              <th>Video</th>
+              <th>Notes</th>
+              <th>Added</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for lesson in lessons %}
+              <tr>
+                <td style="color:var(--text-3);font-weight:600;">{{ lesson.order }}</td>
+                <td>
+                  <span style="font-weight:600;color:var(--text);">{{ lesson.title }}</span>
+                </td>
+                <td>
+                  {% if lesson.video_url %}
+                    <span class="badge badge-teal">🎬 Yes</span>
+                  {% else %}
+                    <span class="badge badge-gray">—</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if lesson.note_content %}
+                    <span class="badge badge-gold">📝 Yes</span>
+                  {% else %}
+                    <span class="badge badge-gray">—</span>
+                  {% endif %}
+                </td>
+                <td style="font-size:.82rem;color:var(--text-3);">{{ lesson.created_at|date:"M d, Y" }}</td>
+                <td>
+                  <div class="flex gap-1">
+                    <a href="{% url 'lesson_view' course.slug lesson.id %}" class="btn btn-sm btn-ghost">View</a>
+                    <a href="{% url 'lesson_edit' course.slug lesson.id %}" class="btn btn-sm btn-outline">Edit</a>
+                    <a href="{% url 'lesson_delete' course.slug lesson.id %}" class="btn btn-sm btn-danger">Delete</a>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);">
+        <div class="icon">📋</div>
+        <h3>No lessons yet</h3>
+        <p>Start building your course by adding the first lesson.</p>
+        <a href="{% url 'lesson_create' course.slug %}" class="btn btn-primary" style="margin-top:16px;">Add First Lesson</a>
+      </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

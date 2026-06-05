@@ -1,0 +1,79 @@
+{% extends 'base.html' %}
+{% block title %}{{ action }} Lesson — {{ course.title }}{% endblock %}
+
+{% block content %}
+<div class="section-sm">
+  <div class="container" style="max-width:760px;">
+
+    <div class="breadcrumb">
+      <a href="{% url 'teacher_dashboard' %}">Dashboard</a>
+      <span class="sep">›</span>
+      <a href="{% url 'course_manage' course.slug %}">{{ course.title }}</a>
+      <span class="sep">›</span>
+      <span>{{ action }} Lesson</span>
+    </div>
+
+    <div class="card">
+      <div class="card-body">
+        <h2 style="margin-bottom:6px;">{{ action }} Lesson</h2>
+        <p style="margin-bottom:24px;color:var(--text-3);">
+          For course: <strong style="color:var(--primary);">{{ course.title }}</strong>
+        </p>
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          <div class="form-group">
+            <label class="form-label">Lesson Title *</label>
+            {{ form.title }}
+            {% for error in form.title.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Order Number</label>
+            {{ form.order }}
+            <p class="form-hint">Controls the order this lesson appears in the course. Lower numbers appear first.</p>
+            {% for error in form.order.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Video URL</label>
+            {{ form.video_url }}
+            <p class="form-hint">Paste a YouTube or Vimeo URL. The video will be embedded automatically.</p>
+            {% for error in form.video_url.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+          </div>
+
+          {% if lesson and lesson.video_url %}
+            <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px;margin-top:-12px;margin-bottom:16px;font-size:.85rem;color:var(--text-3);">
+              Current URL: <code style="color:var(--primary);">{{ lesson.video_url }}</code>
+            </div>
+          {% endif %}
+
+          <div class="form-group">
+            <label class="form-label">Lesson Notes / Content</label>
+            {{ form.note_content }}
+            <p class="form-hint">Write lesson notes, explanations, references, or any text content for students.</p>
+            {% for error in form.note_content.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+          </div>
+
+          <div class="flex gap-2" style="margin-top:8px;">
+            <button type="submit" class="btn btn-primary">
+              {% if action == 'Add' %}Add Lesson{% else %}Save Changes{% endif %}
+            </button>
+            <a href="{% url 'course_manage' course.slug %}" class="btn btn-ghost">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  document.querySelectorAll('form input[type="text"], form input[type="url"], form input[type="number"], form textarea').forEach(function(el) {
+    el.classList.add('form-control');
+  });
+</script>
+{% endblock %}

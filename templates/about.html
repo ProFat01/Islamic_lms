@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% block title %}About Us{% endblock %}
+
+{% block content %}
+
+<section class="about-hero">
+  <div class="container">
+    <h1>About Nur Al-Ilm</h1>
+    <p style="margin-top:16px;font-size:1.1rem;">
+      A platform dedicated to making authentic Islamic education accessible to every Muslim, everywhere.
+    </p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container-sm">
+    <div class="section-header">
+      <div class="section-label">Our Vision</div>
+      <h2>Knowledge for Every Muslim</h2>
+    </div>
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:32px;text-align:center;margin-bottom:40px;">
+      <p style="font-family:var(--font-display);font-size:1.5rem;color:var(--primary);margin-bottom:12px;">
+        اقْرَأْ بِاسْمِ رَبِّكَ الَّذِي خَلَقَ
+      </p>
+      <p style="color:var(--text-2);font-size:1rem;">"Read in the name of your Lord who created." — Al-Alaq 96:1</p>
+    </div>
+    <p style="font-size:1.05rem;line-height:1.9;margin-bottom:20px;">
+      Nur Al-Ilm (نور العلم — Light of Knowledge) was founded on the belief that authentic Islamic education should be accessible to every Muslim, regardless of where they live, what they earn, or how busy their schedule is.
+    </p>
+    <p style="font-size:1.05rem;line-height:1.9;margin-bottom:40px;">
+      We partner with qualified Islamic scholars to bring you structured, reliable, and engaging online courses — from foundational Aqeedah to advanced Fiqh studies.
+    </p>
+  </div>
+</section>
+
+<section class="section" style="background:var(--surface);padding-top:48px;padding-bottom:48px;">
+  <div class="container">
+    <div class="section-header">
+      <div class="section-label">Our Values</div>
+      <h2>What We Stand For</h2>
+    </div>
+    <div class="grid-3">
+      <div class="value-card">
+        <div class="value-icon">🕌</div>
+        <h3>Authenticity</h3>
+        <p>All course content follows traditional Islamic scholarship and verified sources from the Quran and Sunnah.</p>
+      </div>
+      <div class="value-card">
+        <div class="value-icon">🌱</div>
+        <h3>Growth</h3>
+        <p>We build structured learning paths that take students from beginner fundamentals to advanced mastery.</p>
+      </div>
+      <div class="value-card">
+        <div class="value-icon">🤝</div>
+        <h3>Community</h3>
+        <p>We serve the global Ummah — connecting students with teachers across borders and time zones.</p>
+      </div>
+      <div class="value-card">
+        <div class="value-icon">💡</div>
+        <h3>Clarity</h3>
+        <p>Complex topics made understandable. We believe great teaching makes knowledge clear, not complicated.</p>
+      </div>
+      <div class="value-card">
+        <div class="value-icon">🔓</div>
+        <h3>Accessibility</h3>
+        <p>Free access for all students. Islamic knowledge is a trust — not a commodity to be sold.</p>
+      </div>
+      <div class="value-card">
+        <div class="value-icon">📜</div>
+        <h3>Tradition</h3>
+        <p>Rooted in the classical tradition of Islamic scholarship while embracing modern learning methods.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container-sm text-center">
+    <div class="section-label">Join Us</div>
+    <h2>Start Learning Today</h2>
+    <p style="font-size:1.05rem;margin:16px auto 28px;max-width:480px;">
+      Whether you're just beginning your Islamic education or deepening your existing knowledge, there's a course for you.
+    </p>
+    {% if not user.is_authenticated %}
+      <div class="flex-center gap-2" style="flex-wrap:wrap;">
+        <a href="{% url 'register' %}" class="btn btn-primary btn-lg">Create Free Account</a>
+        <a href="{% url 'course_list' %}" class="btn btn-outline btn-lg">Browse Courses</a>
+      </div>
+    {% else %}
+      <a href="{% url 'course_list' %}" class="btn btn-primary btn-lg">Browse Courses</a>
+    {% endif %}
+  </div>
+</section>
+
+{% endblock %}

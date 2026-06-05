@@ -1,0 +1,98 @@
+{% extends 'base.html' %}
+{% block title %}All Courses{% endblock %}
+
+{% block content %}
+
+<!-- Page Title Bar -->
+<div class="page-title-bar">
+  <div class="container">
+    <h1 style="font-size:2rem;margin-bottom:6px;">Islamic Courses</h1>
+    <p>Explore our full catalogue of structured Islamic learning programs.</p>
+  </div>
+</div>
+
+<section class="section-sm">
+  <div class="container">
+
+    <!-- Filters -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:28px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <span style="font-weight:600;font-size:.9rem;color:var(--text-2);">Filter by level:</span>
+      <div class="flex gap-1 flex-wrap">
+        <a href="{% url 'course_list' %}"
+           class="btn btn-sm {% if not level_filter %}btn-primary{% else %}btn-ghost{% endif %}">
+          All Levels
+        </a>
+        {% for value, label in levels %}
+          <a href="?level={{ value }}"
+             class="btn btn-sm {% if level_filter == value %}btn-primary{% else %}btn-ghost{% endif %}">
+            {{ label }}
+          </a>
+        {% endfor %}
+      </div>
+      <span style="margin-left:auto;color:var(--text-3);font-size:.85rem;">{{ courses.count }} course{{ courses.count|pluralize }}</span>
+    </div>
+
+    <!-- Course Grid -->
+    {% if courses %}
+      <div class="grid-3">
+        {% for course in courses %}
+          <div class="card course-card">
+            {% if course.thumbnail %}
+              <img src="{{ course.thumbnail.url }}" alt="{{ course.title }}" class="course-card-thumb">
+            {% else %}
+              <div class="course-card-thumb-placeholder">📖</div>
+            {% endif %}
+            <div class="course-card-body">
+              <div class="flex gap-1" style="margin-bottom:6px;">
+                <span class="badge badge-teal">
+                  <span class="level-indicator level-{{ course.level }}"></span>
+                  {{ course.get_level_display }}
+                </span>
+              </div>
+              <h3 class="course-card-title">{{ course.title }}</h3>
+              <p class="course-card-desc">{{ course.short_description|truncatewords:20 }}</p>
+
+              <!-- Teacher info -->
+              <div class="flex items-center gap-1 mt-2" style="margin-top:10px;">
+                <div class="teacher-avatar" style="width:28px;height:28px;font-size:.7rem;flex-shrink:0;">
+                  {% if course.teacher.profile_picture %}
+                    <img src="{{ course.teacher.profile_picture.url }}" alt="">
+                  {% else %}
+                    {{ course.teacher.first_name|first|upper }}
+                  {% endif %}
+                </div>
+                <span style="font-size:.82rem;color:var(--text-3);">{{ course.teacher.get_full_name|default:course.teacher.username }}</span>
+              </div>
+
+              <div class="course-card-meta">
+                <span class="badge badge-gray">⏱ {{ course.duration }}</span>
+                <span class="badge badge-gray">📚 {{ course.lesson_count }} lessons</span>
+                <span class="badge badge-gray">👥 {{ course.enrollment_count }}</span>
+              </div>
+
+              <a href="{% url 'course_detail' course.slug %}" class="btn btn-outline btn-sm" style="width:100%;justify-content:center;margin-top:12px;">
+                View Course
+              </a>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state">
+        <div class="icon">📚</div>
+        <h3>No courses found</h3>
+        <p>
+          {% if level_filter %}
+            No {{ level_filter }} level courses yet.
+            <a href="{% url 'course_list' %}">View all courses</a>
+          {% else %}
+            No courses are published yet. Check back soon!
+          {% endif %}
+        </p>
+      </div>
+    {% endif %}
+
+  </div>
+</section>
+
+{% endblock %}

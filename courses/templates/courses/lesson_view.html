@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% block title %}{{ lesson.title }} — {{ course.title }}{% endblock %}
+
+{% block content %}
+<div class="lesson-layout">
+
+  <!-- Main Content -->
+  <div class="lesson-content">
+    <div class="breadcrumb">
+      <a href="{% url 'course_list' %}">Courses</a>
+      <span class="sep">›</span>
+      <a href="{% url 'course_detail' course.slug %}">{{ course.title }}</a>
+      <span class="sep">›</span>
+      <span>{{ lesson.title }}</span>
+    </div>
+
+    <h1 style="font-size:1.7rem;margin-bottom:20px;">{{ lesson.title }}</h1>
+
+    <!-- Video Player -->
+    {% if lesson.video_url %}
+      <div class="video-embed" id="video-container" style="display:none;">
+        <!-- Filled by JS -->
+      </div>
+      <input type="hidden" id="video-raw-url" value="{{ lesson.video_url }}">
+    {% endif %}
+
+    <!-- Lesson Notes -->
+    {% if lesson.note_content %}
+      <h3 style="margin-bottom:12px;">Lesson Notes</h3>
+      <div class="lesson-notes">{{ lesson.note_content }}</div>
+    {% endif %}
+
+    {% if not lesson.video_url and not lesson.note_content %}
+      <div class="empty-state">
+        <div class="icon">📋</div>
+        <h3>Content coming soon</h3>
+        <p>The teacher is still preparing this lesson.</p>
+      </div>
+    {% endif %}
+
+    <!-- Navigation Buttons -->
+    <div class="flex justify-between mt-4" style="margin-top:32px;padding-top:20px;border-top:1px solid var(--border);">
+      {% with lessons=all_lessons %}
+        {% for l in lessons %}
+          {% if l.id == lesson.id %}
+            {% if not forloop.first %}
+              {% with prev_index=forloop.counter0|add:"-1" %}
+                <!-- Django template limitation: use sidebar for prev/next -->
+              {% endwith %}
+            {% endif %}
+          {% endif %}
+        {% endfor %}
+      {% endwith %}
+      <a href="{% url 'course_detail' course.slug %}" class="btn btn-ghost">← Back to Course</a>
+      {% if user.is_teacher and user == course.teacher %}
+        <a href="{% url 'course_manage' course.slug %}" class="btn btn-outline btn-sm">Manage Course</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Lessons Sidebar -->
+  <div class="lesson-sidebar">
+    <div class="lesson-sidebar-title">Course Lessons</div>
+    {% for l in all_lessons %}
+      <a href="{% url 'lesson_view' course.slug l.id %}"
+         class="lesson-nav-item {% if l.id == lesson.id %}active{% endif %}">
+        <span style="width:22px;height:22px;border-radius:50%;background:{% if l.id == lesson.id %}var(--primary){% else %}var(--surface-2){% endif %};color:{% if l.id == lesson.id %}#fff{% else %}var(--text-3){% endif %};display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0;">
+          {{ forloop.counter }}
+        </span>
+        <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ l.title }}</span>
+        {% if l.video_url %}<span style="font-size:.75rem;">🎬</span>{% endif %}
+        {% if l.note_content %}<span style="font-size:.75rem;">📝</span>{% endif %}
+      </a>
+    {% empty %}
+      <p style="padding:16px 20px;color:var(--text-3);font-size:.85rem;">No lessons yet</p>
+    {% endfor %}
+  </div>
+
+</div>
+{% endblock %}

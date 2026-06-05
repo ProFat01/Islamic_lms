@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Islamic LMS{% endblock %} — Nur Al-Ilm</title>
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'css/main.css' %}">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☪️</text></svg>">
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+
+<!-- ── Navigation ── -->
+<nav class="navbar">
+  <div class="container nav-inner">
+
+    <!-- Brand -->
+    <a href="{% url 'home' %}" class="nav-brand">
+      <div class="nav-brand-icon">☪</div>
+      <div>
+        <span class="nav-brand-text">Nur Al-Ilm</span>
+        <span class="nav-brand-sub">Islamic Learning Platform</span>
+      </div>
+    </a>
+
+    <!-- Nav Links -->
+    <ul class="nav-links" id="nav-links">
+      <li><a href="{% url 'home' %}">Home</a></li>
+      <li><a href="{% url 'course_list' %}">Courses</a></li>
+      <li><a href="{% url 'about' %}">About</a></li>
+      {% if user.is_authenticated %}
+        {% if user.is_teacher %}
+          <li><a href="{% url 'teacher_dashboard' %}">Dashboard</a></li>
+        {% else %}
+          <li><a href="{% url 'student_dashboard' %}">Dashboard</a></li>
+        {% endif %}
+        <li><a href="{% url 'profile' %}">Profile</a></li>
+      {% endif %}
+    </ul>
+
+    <!-- Actions -->
+    <div class="nav-actions">
+      <button class="theme-toggle" id="theme-toggle" title="Toggle dark mode" aria-label="Toggle theme">
+        <span id="theme-icon">🌙</span>
+      </button>
+
+      {% if user.is_authenticated %}
+        <a href="{% url 'logout' %}" class="btn btn-outline btn-sm">Sign Out</a>
+      {% else %}
+        <a href="{% url 'login' %}" class="btn btn-ghost btn-sm">Sign In</a>
+        <a href="{% url 'register' %}" class="btn btn-primary btn-sm">Join Free</a>
+      {% endif %}
+
+      <button class="hamburger" id="hamburger" aria-label="Menu" aria-expanded="false">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+
+  </div>
+</nav>
+
+<!-- ── Flash Messages ── -->
+{% if messages %}
+<div class="messages-container">
+  {% for message in messages %}
+    <div class="alert alert-{{ message.tags }}">
+      <span>
+        {% if message.tags == 'success' %}✅{% elif message.tags == 'error' %}❌{% elif message.tags == 'warning' %}⚠️{% else %}ℹ️{% endif %}
+      </span>
+      <span>{{ message }}</span>
+    </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- ── Page Content ── -->
+<main>
+  {% block content %}{% endblock %}
+</main>
+
+<!-- ── Footer ── -->
+<footer class="footer">
+  <div class="container">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <a href="{% url 'home' %}" class="nav-brand">
+          <div class="nav-brand-icon">☪</div>
+          <div>
+            <span class="nav-brand-text">Nur Al-Ilm</span>
+            <span class="nav-brand-sub">Islamic Learning Platform</span>
+          </div>
+        </a>
+        <p>Making authentic Islamic education accessible to everyone, everywhere. Learn at your own pace with qualified teachers.</p>
+      </div>
+      <div class="footer-col">
+        <h5>Learning</h5>
+        <ul>
+          <li><a href="{% url 'course_list' %}">All Courses</a></li>
+          <li><a href="{% url 'course_list' %}?level=beginner">For Beginners</a></li>
+          <li><a href="{% url 'course_list' %}?level=advanced">Advanced Studies</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h5>Platform</h5>
+        <ul>
+          <li><a href="{% url 'about' %}">About Us</a></li>
+          {% if not user.is_authenticated %}
+            <li><a href="{% url 'register' %}">Join Free</a></li>
+            <li><a href="{% url 'login' %}">Sign In</a></li>
+          {% endif %}
+        </ul>
+      </div>
+      <div class="footer-col">
+        <h5>My Account</h5>
+        <ul>
+          {% if user.is_authenticated %}
+            <li><a href="{% url 'profile' %}">My Profile</a></li>
+            {% if user.is_student %}
+              <li><a href="{% url 'student_dashboard' %}">My Courses</a></li>
+            {% endif %}
+            <li><a href="{% url 'logout' %}">Sign Out</a></li>
+          {% else %}
+            <li><a href="{% url 'register' %}">Register</a></li>
+            <li><a href="{% url 'login' %}">Login</a></li>
+          {% endif %}
+        </ul>
+      </div>
+    </div>
+
+    <div class="footer-bottom">
+      <p>© {% now "Y" %} Nur Al-Ilm Islamic LMS. Built with ❤️ for the Ummah.</p>
+      <span class="footer-arabic">بِسْمِ اللهِ الرَّحْمٰنِ الرَّحِيْمِ</span>
+    </div>
+  </div>
+</footer>
+
+<script src="{% static 'js/main.js' %}"></script>
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>

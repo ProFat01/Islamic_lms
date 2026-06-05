@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% block title %}My Profile{% endblock %}
+
+{% block content %}
+<div class="section-sm">
+  <div class="container" style="max-width:760px;">
+
+    <!-- Profile Header -->
+    <div class="profile-header">
+      <div class="profile-avatar">
+        {% if user.profile_picture %}
+          <img src="{{ user.profile_picture.url }}" alt="{{ user.get_full_name }}">
+        {% else %}
+          {{ user.first_name|first|upper }}{{ user.last_name|first|upper }}
+        {% endif %}
+      </div>
+      <div>
+        <h2 style="margin-bottom:4px;">{{ user.get_full_name|default:user.username }}</h2>
+        <p style="margin-bottom:8px;">@{{ user.username }}</p>
+        <div class="flex gap-1 flex-wrap">
+          <span class="badge badge-teal">{{ user.get_role_display }}</span>
+          <span class="badge badge-gray">Joined {{ user.date_joined|date:"F Y" }}</span>
+          {% if user.is_student %}
+            <span class="badge badge-gold">{{ user.enrollments.count }} courses enrolled</span>
+          {% endif %}
+        </div>
+        {% if user.bio %}
+          <p style="margin-top:12px;font-size:.95rem;">{{ user.bio }}</p>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- Edit Form -->
+    <div class="card">
+      <div class="card-body">
+        <h3 style="margin-bottom:20px;">Edit Profile</h3>
+        <form method="post" enctype="multipart/form-data" novalidate>
+          {% csrf_token %}
+
+          <div class="grid-2" style="gap:16px;">
+            <div class="form-group">
+              <label class="form-label">First Name</label>
+              {{ form.first_name }}
+              {% for error in form.first_name.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+            </div>
+            <div class="form-group">
+              <label class="form-label">Last Name</label>
+              {{ form.last_name }}
+              {% for error in form.last_name.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Email Address</label>
+            {{ form.email }}
+            {% for error in form.email.errors %}<p class="form-error">{{ error }}</p>{% endfor %}
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Bio</label>
+            {{ form.bio }}
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Profile Picture</label>
+            {{ form.profile_picture }}
+            {% if user.profile_picture %}
+              <p class="form-hint">Current: <a href="{{ user.profile_picture.url }}" target="_blank">View photo</a></p>
+            {% endif %}
+          </div>
+
+          <button type="submit" class="btn btn-primary">Save Changes</button>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  document.querySelectorAll('form input, form textarea, form select').forEach(function(el) {
+    if (!el.classList.contains('form-control') && el.type !== 'file' && el.type !== 'submit') {
+      el.classList.add('form-control');
+    }
+  });
+</script>
+{% endblock %}

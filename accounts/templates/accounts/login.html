@@ -1,0 +1,64 @@
+{% extends 'base.html' %}
+{% block title %}Sign In{% endblock %}
+
+{% block content %}
+<div class="auth-page">
+  <div class="auth-card">
+    <div class="auth-logo">
+      <div class="auth-logo-icon">☪</div>
+      <h1>Welcome Back</h1>
+      <p class="auth-subtitle">Sign in to continue your learning journey</p>
+    </div>
+
+    <form method="post" novalidate>
+      {% csrf_token %}
+
+      <div class="form-group">
+        <label class="form-label" for="{{ form.username.id_for_label }}">Username</label>
+        {{ form.username }}
+        {% if form.username.errors %}
+          {% for error in form.username.errors %}
+            <p class="form-error">{{ error }}</p>
+          {% endfor %}
+        {% endif %}
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="{{ form.password.id_for_label }}">Password</label>
+        {{ form.password }}
+        {% if form.password.errors %}
+          {% for error in form.password.errors %}
+            <p class="form-error">{{ error }}</p>
+          {% endfor %}
+        {% endif %}
+      </div>
+
+      {% if form.non_field_errors %}
+        <div class="alert alert-error" style="margin-bottom:16px;">
+          {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+        </div>
+      {% endif %}
+
+      <button type="submit" class="btn btn-primary" style="width:100%;justify-content:center;padding:12px;">
+        Sign In
+      </button>
+    </form>
+
+    <div class="auth-divider" style="margin-top:24px;">
+      <p style="text-align:center;color:var(--text-3);font-size:.9rem;">
+        Don't have an account?
+        <a href="{% url 'register' %}" style="color:var(--primary);font-weight:600;">Join Free</a>
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  // Add form-control class to Django form inputs
+  document.querySelectorAll('.auth-card input').forEach(function(input) {
+    input.classList.add('form-control');
+  });
+</script>
+{% endblock %}

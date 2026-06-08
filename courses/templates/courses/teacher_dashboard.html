@@ -70,6 +70,7 @@
           <thead>
             <tr>
               <th>Course</th>
+              <th>Category</th>
               <th>Level</th>
               <th>Lessons</th>
               <th>Students</th>
@@ -92,6 +93,13 @@
                       <div style="font-size:.75rem;color:var(--text-3);">{{ course.created_at|date:"M d, Y" }}</div>
                     </div>
                   </div>
+                </td>
+                <td>
+                  {% if course.category %}
+                    <span class="badge badge-gold">{{ course.category.name }}</span>
+                  {% else %}
+                    <span style="color:var(--text-3);font-size:.82rem;">—</span>
+                  {% endif %}
                 </td>
                 <td>
                   <span class="badge badge-teal">{{ course.get_level_display }}</span>

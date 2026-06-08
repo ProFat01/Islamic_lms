@@ -1,5 +1,5 @@
 from django import forms
-from .models import Course, Lesson
+from .models import Category, Course, Lesson
 
 
 class CourseForm(forms.ModelForm):
@@ -8,12 +8,15 @@ class CourseForm(forms.ModelForm):
     class Meta:
         model = Course
         fields = (
-            'title', 'thumbnail', 'short_description',
+            'title', 'category', 'thumbnail', 'short_description',
             'full_description', 'level', 'duration', 'is_published'
         )
         widgets = {
             'title': forms.TextInput(attrs={
                 'placeholder': 'e.g. Introduction to Tajweed'
+            }),
+            'category': forms.Select(attrs={
+                'class': 'form-control'
             }),
             'short_description': forms.TextInput(attrs={
                 'placeholder': 'A brief summary shown on course cards (max 300 chars)'
@@ -26,6 +29,12 @@ class CourseForm(forms.ModelForm):
                 'placeholder': 'e.g. 8 weeks, 40 hours'
             }),
         }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Show a blank option so category remains optional
+        self.fields['category'].empty_label = '— No category —'
+        self.fields['category'].queryset = Category.objects.all()
 
 
 class LessonForm(forms.ModelForm):

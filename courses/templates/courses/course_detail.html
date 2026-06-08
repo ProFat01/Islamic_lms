@@ -22,6 +22,13 @@
             <span class="level-indicator level-{{ course.level }}"></span>
             {{ course.get_level_display }}
           </span>
+          {% if course.category %}
+            <a href="{% url 'course_list' %}?category={{ course.category.slug }}"
+               class="badge badge-gold"
+               style="text-decoration:none;">
+              {{ course.category.name }}
+            </a>
+          {% endif %}
           {% if is_enrolled %}
             <span class="badge badge-green">✅ Enrolled</span>
           {% endif %}
@@ -68,6 +75,17 @@
             <div style="font-size:.78rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;">Level</div>
             <div style="font-weight:600;color:var(--text);">{{ course.get_level_display }}</div>
           </div>
+          {% if course.category %}
+          <div>
+            <div style="font-size:.78rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;">Category</div>
+            <div style="font-weight:600;">
+              <a href="{% url 'course_list' %}?category={{ course.category.slug }}"
+                 style="color:var(--gold);text-decoration:none;">
+                🏷 {{ course.category.name }}
+              </a>
+            </div>
+          </div>
+          {% endif %}
         </div>
 
         <!-- Full Description -->

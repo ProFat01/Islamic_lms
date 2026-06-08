@@ -2,7 +2,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
-from .models import Course, Lesson, Enrollment
+from .models import Category, Course, Lesson, Enrollment
 from .forms import CourseForm, LessonForm
 from accounts.models import User
 
@@ -29,14 +29,22 @@ def about(request):
 
 def course_list(request):
     """Public list of all published courses."""
-    level_filter = request.GET.get('level', '')
-    courses = Course.objects.filter(is_published=True)
+    level_filter    = request.GET.get('level', '')
+    category_filter = request.GET.get('category', '')
+
+    courses = Course.objects.filter(is_published=True).select_related('category', 'teacher')
+
     if level_filter:
         courses = courses.filter(level=level_filter)
+    if category_filter:
+        courses = courses.filter(category__slug=category_filter)
+
     context = {
         'courses': courses,
         'level_filter': level_filter,
+        'category_filter': category_filter,
         'levels': Course.Level.choices,
+        'categories': Category.objects.all(),
     }
     return render(request, 'courses/course_list.html', context)
 

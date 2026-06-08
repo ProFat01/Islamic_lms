@@ -1,5 +1,13 @@
 from django.contrib import admin
-from .models import Course, Lesson, Enrollment
+from .models import Category, Course, Lesson, Enrollment
+
+
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    list_display = ('name', 'slug', 'course_count', 'description')
+    search_fields = ('name',)
+    prepopulated_fields = {'slug': ('name',)}
+    ordering = ('name',)
 
 
 class LessonInline(admin.TabularInline):
@@ -11,8 +19,8 @@ class LessonInline(admin.TabularInline):
 
 @admin.register(Course)
 class CourseAdmin(admin.ModelAdmin):
-    list_display = ('title', 'teacher', 'level', 'is_published', 'lesson_count', 'enrollment_count', 'created_at')
-    list_filter = ('is_published', 'level', 'teacher')
+    list_display = ('title', 'category', 'teacher', 'level', 'is_published', 'lesson_count', 'enrollment_count', 'created_at')
+    list_filter = ('is_published', 'level', 'category', 'teacher')
     search_fields = ('title', 'short_description')
     prepopulated_fields = {'slug': ('title',)}
     inlines = [LessonInline]

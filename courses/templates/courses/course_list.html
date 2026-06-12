@@ -6,53 +6,108 @@
 <!-- Page Title Bar -->
 <div class="page-title-bar">
   <div class="container">
-    <h1 style="font-size:2rem;margin-bottom:6px;">Islamic Courses</h1>
-    <p>Explore our full catalogue of structured Islamic learning programs.</p>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap;">
+      <div>
+        <h1 style="font-size:2rem;margin-bottom:6px;">Islamic Courses</h1>
+        <p>Explore our full catalogue of structured Islamic learning programs.</p>
+      </div>
+      <!-- Result count badge -->
+      <div style="display:flex;align-items:center;gap:8px;padding-top:6px;">
+        <span class="badge badge-teal" style="font-size:.85rem;padding:6px 14px;">
+          {{ courses.count }} course{{ courses.count|pluralize }}
+        </span>
+      </div>
+    </div>
   </div>
 </div>
 
 <section class="section-sm">
   <div class="container">
 
-    <!-- Filters -->
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:16px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-      <span style="font-weight:600;font-size:.9rem;color:var(--text-2);">Level:</span>
+    <!-- ── Search Bar ── -->
+    <form method="get" action="{% url 'course_list' %}" style="margin-bottom:20px;">
+      <!-- Preserve active level & category filters when searching -->
+      {% if level_filter %}
+        <input type="hidden" name="level" value="{{ level_filter }}">
+      {% endif %}
+      {% if category_filter %}
+        <input type="hidden" name="category" value="{{ category_filter }}">
+      {% endif %}
+      <div class="search-bar">
+        <input
+          type="search"
+          name="q"
+          value="{{ search_query }}"
+          placeholder="Search by title, description, or category…"
+          aria-label="Search courses"
+          autocomplete="off"
+        >
+        <button type="submit">
+          🔍 Search
+        </button>
+      </div>
+    </form>
+
+    <!-- ── Active search result banner ── -->
+    {% if search_query %}
+      <div class="search-highlight">
+        <span>Showing results for <strong>"{{ search_query }}"</strong></span>
+        <a href="?{% if level_filter %}level={{ level_filter }}&{% endif %}{% if category_filter %}category={{ category_filter }}{% endif %}"
+           class="btn btn-sm btn-ghost" style="padding:4px 12px;">
+          ✕ Clear search
+        </a>
+      </div>
+    {% endif %}
+
+    <!-- ── Category Cards ── -->
+    {% if categories %}
+      <div style="margin-bottom:8px;">
+        <span style="font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text-3);">Browse by Category</span>
+      </div>
+      <div class="category-grid">
+        <!-- "All" card -->
+        <a href="?{% if level_filter %}level={{ level_filter }}&{% endif %}{% if search_query %}q={{ search_query }}{% endif %}"
+           class="category-card {% if not category_filter %}active{% endif %}">
+          <div class="category-card-icon">📚</div>
+          <span class="category-card-name">All Categories</span>
+          <span class="category-card-count">{{ categories|length }} categories</span>
+        </a>
+        {% for cat in categories %}
+          <a href="?{% if level_filter %}level={{ level_filter }}&{% endif %}{% if search_query %}q={{ search_query }}&{% endif %}category={{ cat.slug }}"
+             class="category-card {% if category_filter == cat.slug %}active{% endif %}">
+            <div class="category-card-icon">🏷</div>
+            <span class="category-card-name">{{ cat.name }}</span>
+            <span class="category-card-count">
+              {{ cat.course_count }} course{{ cat.course_count|pluralize }}
+            </span>
+          </a>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <!-- ── Level Filter ── -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 20px;margin-bottom:28px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <span style="font-weight:600;font-size:.88rem;color:var(--text-2);">Level:</span>
       <div class="flex gap-1 flex-wrap">
-        <a href="?{% if category_filter %}category={{ category_filter }}&{% endif %}level="
+        <a href="?{% if category_filter %}category={{ category_filter }}&{% endif %}{% if search_query %}q={{ search_query }}&{% endif %}level="
            class="btn btn-sm {% if not level_filter %}btn-primary{% else %}btn-ghost{% endif %}">
           All
         </a>
         {% for value, label in levels %}
-          <a href="?{% if category_filter %}category={{ category_filter }}&{% endif %}level={{ value }}"
+          <a href="?{% if category_filter %}category={{ category_filter }}&{% endif %}{% if search_query %}q={{ search_query }}&{% endif %}level={{ value }}"
              class="btn btn-sm {% if level_filter == value %}btn-primary{% else %}btn-ghost{% endif %}">
-            {{ label }}
+            <span class="level-indicator level-{{ value }}"></span>{{ label }}
           </a>
         {% endfor %}
       </div>
-      <span style="margin-left:auto;color:var(--text-3);font-size:.85rem;">{{ courses.count }} course{{ courses.count|pluralize }}</span>
-    </div>
-
-    <!-- Category Filters -->
-    {% if categories %}
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:28px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-      <span style="font-weight:600;font-size:.9rem;color:var(--text-2);">Category:</span>
-      <div class="flex gap-1 flex-wrap">
-        <a href="?{% if level_filter %}level={{ level_filter }}{% endif %}"
-           class="btn btn-sm {% if not category_filter %}btn-gold{% else %}btn-ghost{% endif %}">
-          All Categories
+      {% if any_filter %}
+        <a href="{% url 'course_list' %}" class="btn btn-sm btn-ghost" style="margin-left:auto;color:var(--text-3);">
+          ✕ Clear all
         </a>
-        {% for cat in categories %}
-          <a href="?{% if level_filter %}level={{ level_filter }}&{% endif %}category={{ cat.slug }}"
-             class="btn btn-sm {% if category_filter == cat.slug %}btn-gold{% else %}btn-ghost{% endif %}">
-            {{ cat.name }}
-            <span style="opacity:.6;font-size:.75rem;">({{ cat.course_count }})</span>
-          </a>
-        {% endfor %}
-      </div>
+      {% endif %}
     </div>
-    {% endif %}
 
-    <!-- Course Grid -->
+    <!-- ── Course Grid ── -->
     {% if courses %}
       <div class="grid-3">
         {% for course in courses %}
@@ -69,7 +124,11 @@
                   {{ course.get_level_display }}
                 </span>
                 {% if course.category %}
-                  <span class="badge badge-gold">{{ course.category.name }}</span>
+                  <a href="{% url 'category_detail' course.category.slug %}"
+                     class="badge badge-gold"
+                     style="text-decoration:none;">
+                    {{ course.category.name }}
+                  </a>
                 {% endif %}
               </div>
               <h3 class="course-card-title">{{ course.title }}</h3>
@@ -84,7 +143,9 @@
                     {{ course.teacher.first_name|first|upper }}
                   {% endif %}
                 </div>
-                <span style="font-size:.82rem;color:var(--text-3);">{{ course.teacher.get_full_name|default:course.teacher.username }}</span>
+                <span style="font-size:.82rem;color:var(--text-3);">
+                  {{ course.teacher.get_full_name|default:course.teacher.username }}
+                </span>
               </div>
 
               <div class="course-card-meta">
@@ -93,25 +154,32 @@
                 <span class="badge badge-gray">👥 {{ course.enrollment_count }}</span>
               </div>
 
-              <a href="{% url 'course_detail' course.slug %}" class="btn btn-outline btn-sm" style="width:100%;justify-content:center;margin-top:12px;">
+              <a href="{% url 'course_detail' course.slug %}"
+                 class="btn btn-outline btn-sm"
+                 style="width:100%;justify-content:center;margin-top:12px;">
                 View Course
               </a>
             </div>
           </div>
         {% endfor %}
       </div>
+
     {% else %}
       <div class="empty-state">
-        <div class="icon">📚</div>
+        <div class="icon">🔍</div>
         <h3>No courses found</h3>
         <p>
-          {% if level_filter or category_filter %}
-            No courses match the selected filters.
-            <a href="{% url 'course_list' %}">Clear filters</a>
+          {% if any_filter %}
+            No courses match your current filters.
           {% else %}
             No courses are published yet. Check back soon!
           {% endif %}
         </p>
+        {% if any_filter %}
+          <a href="{% url 'course_list' %}" class="btn btn-outline" style="margin-top:16px;">
+            Clear all filters
+          </a>
+        {% endif %}
       </div>
     {% endif %}
 

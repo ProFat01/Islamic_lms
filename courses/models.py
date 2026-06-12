@@ -1,4 +1,5 @@
 from django.db import models
+from django.urls import reverse
 from django.utils.text import slugify
 from django.conf import settings
 
@@ -37,6 +38,9 @@ class Category(models.Model):
     @property
     def course_count(self):
         return self.courses.filter(is_published=True).count()
+
+    def get_absolute_url(self):
+        return reverse('category_detail', kwargs={'slug': self.slug})
 
 
 class Course(models.Model):

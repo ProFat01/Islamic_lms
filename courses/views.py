@@ -2,6 +2,7 @@ from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.core.exceptions import PermissionDenied
+from django.db.models import Q
 from .models import Category, Course, Lesson, Enrollment
 from .forms import CourseForm, LessonForm
 from accounts.models import User
@@ -12,12 +13,24 @@ from accounts.models import User
 # ─────────────────────────────────────────────
 
 def home(request):
-    """Home page with featured courses and teachers."""
-    featured_courses = Course.objects.filter(is_published=True)[:6]
+    """Home page with featured courses, teachers, and categories."""
+    featured_courses = (
+        Course.objects
+        .filter(is_published=True)
+        .select_related('category', 'teacher')[:6]
+    )
     teachers = User.objects.filter(role=User.Role.TEACHER, is_active=True)[:4]
+    # Only show categories that contain at least one published course
+    featured_categories = (
+        Category.objects
+        .filter(courses__is_published=True)
+        .distinct()
+        .order_by('name')[:8]
+    )
     context = {
         'featured_courses': featured_courses,
         'teachers': teachers,
+        'featured_categories': featured_categories,
     }
     return render(request, 'home.html', context)
 
@@ -28,23 +41,42 @@ def about(request):
 
 
 def course_list(request):
-    """Public list of all published courses."""
-    level_filter    = request.GET.get('level', '')
-    category_filter = request.GET.get('category', '')
+    """
+    Public list of all published courses.
+    Supports filtering by level, category slug, and free-text search.
+    All three filters compose together with AND logic.
+    """
+    level_filter    = request.GET.get('level', '').strip()
+    category_filter = request.GET.get('category', '').strip()
+    search_query    = request.GET.get('q', '').strip()
 
-    courses = Course.objects.filter(is_published=True).select_related('category', 'teacher')
+    courses = (
+        Course.objects
+        .filter(is_published=True)
+        .select_related('category', 'teacher')
+    )
 
     if level_filter:
         courses = courses.filter(level=level_filter)
+
     if category_filter:
         courses = courses.filter(category__slug=category_filter)
+
+    if search_query:
+        courses = courses.filter(
+            Q(title__icontains=search_query)
+            | Q(short_description__icontains=search_query)
+            | Q(category__name__icontains=search_query)
+        ).distinct()
 
     context = {
         'courses': courses,
         'level_filter': level_filter,
         'category_filter': category_filter,
+        'search_query': search_query,
         'levels': Course.Level.choices,
         'categories': Category.objects.all(),
+        'any_filter': bool(level_filter or category_filter or search_query),
     }
     return render(request, 'courses/course_list.html', context)
 
@@ -64,6 +96,34 @@ def course_detail(request, slug):
         'is_enrolled': is_enrolled,
     }
     return render(request, 'courses/course_detail.html', context)
+
+
+def category_detail(request, slug):
+    """
+    Public category page — lists all published courses in this category.
+    Returns 404 if the category slug does not exist.
+    """
+    category = get_object_or_404(Category, slug=slug)
+    courses = (
+        Course.objects
+        .filter(category=category, is_published=True)
+        .select_related('teacher')
+        .order_by('-created_at')
+    )
+    # Sidebar: all other categories that have at least one published course
+    other_categories = (
+        Category.objects
+        .filter(courses__is_published=True)
+        .distinct()
+        .exclude(pk=category.pk)
+        .order_by('name')
+    )
+    context = {
+        'category': category,
+        'courses': courses,
+        'other_categories': other_categories,
+    }
+    return render(request, 'courses/category_detail.html', context)
 
 
 # ─────────────────────────────────────────────
@@ -156,7 +216,7 @@ def teacher_dashboard(request):
             return redirect('student_dashboard')
         return redirect('home')
 
-    courses = Course.objects.filter(teacher=request.user)
+    courses = Course.objects.filter(teacher=request.user).select_related('category')
     context = {
         'courses': courses,
         'total_courses': courses.count(),

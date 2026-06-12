@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ category.name }}{% endblock %}
+
+{% block content %}
+<div style="background:red;color:white;padding:20px;font-size:30px;">
+CATEGORY TEMPLATE WORKING
+</div>
+<div class="page-title-bar">
+    <div class="container">
+        <h1>{{ category.name }}</h1>
+
+        {% if category.description %}
+            <p>{{ category.description }}</p>
+        {% else %}
+            <p>Browse all published courses in this subject area.</p>
+        {% endif %}
+    </div>
+</div>
+
+<section class="section-sm">
+    <div class="container">
+
+        <div class="flex gap-1 mb-2">
+            <a href="{% url 'course_list' %}" class="badge badge-gold">
+                📚 Course List
+            </a>
+
+            <a href="{% url 'course_list' %}?category={{ category.slug }}"
+               class="badge badge-teal">
+                🔍 Filter In Course List
+            </a>
+        </div>
+
+        {% if courses %}
+
+        <div class="grid-3">
+
+            {% for course in courses %}
+            <div class="card course-card">
+
+                {% if course.thumbnail %}
+                    <img src="{{ course.thumbnail.url }}"
+                         alt="{{ course.title }}"
+                         class="course-card-thumb">
+                {% endif %}
+
+                <div class="course-card-body">
+
+                    <div class="flex gap-1 mb-1">
+
+                        <span class="badge badge-teal">
+                            {{ course.get_level_display }}
+                        </span>
+
+                        {% if course.category %}
+                        <span class="badge badge-gold">
+                            {{ course.category.name }}
+                        </span>
+                        {% endif %}
+
+                    </div>
+
+                    <h3>{{ course.title }}</h3>
+
+                    <p>
+                        {{ course.short_description|truncatewords:20 }}
+                    </p>
+
+                    <div class="course-card-meta">
+
+                        <span>
+                            ⏱ {{ course.duration }}
+                        </span>
+
+                        <span>
+                            📚 {{ course.lesson_count }} Lessons
+                        </span>
+
+                        <span>
+                            👥 {{ course.enrollment_count }}
+                        </span>
+
+                    </div>
+
+                    <a href="{% url 'course_detail' course.slug %}"
+                       class="btn btn-outline btn-sm"
+                       style="width:100%;margin-top:12px;">
+                        View Course
+                    </a>
+
+                </div>
+
+            </div>
+            {% endfor %}
+
+        </div>
+
+        {% else %}
+
+        <div class="empty-state">
+            <div class="icon">📋</div>
+            <h3>No courses yet</h3>
+            <p>
+                No published courses in
+                <strong>{{ category.name }}</strong>
+                yet. Check back soon!
+            </p>
+
+            <a href="{% url 'course_list' %}"
+               class="btn btn-outline"
+               style="margin-top:16px;">
+                Browse all courses
+            </a>
+        </div>
+
+        {% endif %}
+
+    </div>
+</section>
+
+{% endblock %}

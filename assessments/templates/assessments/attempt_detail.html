@@ -1,0 +1,343 @@
+{% extends 'base.html' %}
+{% block title %}Quiz Result — {{ attempt.quiz.title }}{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* ── Result-specific styles ── */
+  .result-hero {
+    border-radius: var(--radius);
+    padding: 36px 32px;
+    text-align: center;
+    margin-bottom: 32px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .result-hero.passed {
+    background: linear-gradient(135deg, #d4edda, #c3e6cb);
+    border: 1.5px solid #b1dfbb;
+  }
+
+  .result-hero.failed {
+    background: linear-gradient(135deg, #fdecea, #f5c6cb);
+    border: 1.5px solid #f1b0b7;
+  }
+
+  [data-theme="dark"] .result-hero.passed {
+    background: linear-gradient(135deg, #0d2e1a, #163d22);
+    border-color: #27ae60;
+  }
+
+  [data-theme="dark"] .result-hero.failed {
+    background: linear-gradient(135deg, #2e0d0d, #3d1616);
+    border-color: #c0392b;
+  }
+
+  .result-hero-icon {
+    font-size: 3.5rem;
+    margin-bottom: 12px;
+    display: block;
+  }
+
+  .result-hero-status {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 8px;
+    font-family: var(--font-display);
+  }
+
+  .result-hero.passed .result-hero-status { color: #155724; }
+  .result-hero.failed .result-hero-status { color: #721c24; }
+
+  [data-theme="dark"] .result-hero.passed .result-hero-status { color: #27ae60; }
+  [data-theme="dark"] .result-hero.failed .result-hero-status { color: #e74c3c; }
+
+  .result-score-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin: 24px 0 0;
+  }
+
+  .result-score-cell {
+    background: rgba(255,255,255,.5);
+    border-radius: var(--radius-sm);
+    padding: 14px 10px;
+  }
+
+  [data-theme="dark"] .result-score-cell {
+    background: rgba(255,255,255,.05);
+  }
+
+  .result-score-cell .num {
+    font-size: 1.6rem;
+    font-weight: 700;
+    font-family: var(--font-display);
+  }
+
+  .result-score-cell .lbl {
+    font-size: .75rem;
+    opacity: .7;
+    margin-top: 2px;
+  }
+
+  .result-hero.passed .result-score-cell .num { color: #155724; }
+  .result-hero.failed .result-score-cell .num { color: #721c24; }
+
+  [data-theme="dark"] .result-hero.passed .result-score-cell .num { color: #27ae60; }
+  [data-theme="dark"] .result-hero.failed .result-score-cell .num { color: #e74c3c; }
+
+  /* ── Answer review cards ── */
+  .answer-card {
+    border-radius: var(--radius);
+    border: 1.5px solid var(--border);
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+
+  .answer-card-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .answer-card.correct { border-color: #b1dfbb; }
+  .answer-card.wrong   { border-color: #f1b0b7; }
+
+  [data-theme="dark"] .answer-card.correct { border-color: #27ae60; }
+  [data-theme="dark"] .answer-card.wrong   { border-color: #c0392b; }
+
+  .answer-card.correct .answer-card-header { background: #f0fff4; }
+  .answer-card.wrong   .answer-card-header { background: #fff5f5; }
+
+  [data-theme="dark"] .answer-card.correct .answer-card-header { background: rgba(39,174,96,.08); }
+  [data-theme="dark"] .answer-card.wrong   .answer-card-header { background: rgba(192,57,43,.08); }
+
+  .answer-marker {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .85rem;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+
+  .answer-marker.correct { background: #27ae60; color: #fff; }
+  .answer-marker.wrong   { background: #c0392b; color: #fff; }
+
+  .answer-question-text {
+    font-weight: 600;
+    font-size: .97rem;
+    color: var(--text);
+    line-height: 1.5;
+  }
+
+  .answer-question-number {
+    font-size: .72rem;
+    color: var(--text-3);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: .05em;
+    margin-bottom: 3px;
+  }
+
+  .answer-choices {
+    padding: 14px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .answer-choice-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: var(--radius-sm);
+    font-size: .9rem;
+    color: var(--text-2);
+    border: 1px solid transparent;
+  }
+
+  .answer-choice-row.chosen-correct {
+    background: #d4edda;
+    border-color: #b1dfbb;
+    color: #155724;
+    font-weight: 600;
+  }
+
+  .answer-choice-row.chosen-wrong {
+    background: #fdecea;
+    border-color: #f1b0b7;
+    color: #721c24;
+    font-weight: 600;
+  }
+
+  .answer-choice-row.correct-answer {
+    background: #d4edda;
+    border-color: #b1dfbb;
+    color: #155724;
+    font-weight: 600;
+  }
+
+  [data-theme="dark"] .answer-choice-row.chosen-correct,
+  [data-theme="dark"] .answer-choice-row.correct-answer {
+    background: rgba(39,174,96,.12);
+    border-color: #27ae60;
+    color: #27ae60;
+  }
+
+  [data-theme="dark"] .answer-choice-row.chosen-wrong {
+    background: rgba(192,57,43,.12);
+    border-color: #c0392b;
+    color: #e74c3c;
+  }
+
+  .choice-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: .65rem;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="section-sm">
+  <div class="container" style="max-width:760px;">
+
+    <!-- Breadcrumb -->
+    <div class="breadcrumb">
+      <a href="{% url 'course_detail' attempt.quiz.course.slug %}">{{ attempt.quiz.course.title }}</a>
+      <span class="sep">›</span>
+      <a href="{% url 'quiz_detail' attempt.quiz.pk %}">{{ attempt.quiz.title }}</a>
+      <span class="sep">›</span>
+      <span>Result</span>
+    </div>
+
+    <!-- ── Result Hero ── -->
+    <div class="result-hero {% if attempt.passed %}passed{% else %}failed{% endif %}" style="margin-top:16px;">
+      <span class="result-hero-icon">
+        {% if attempt.passed %}🎉{% else %}📖{% endif %}
+      </span>
+      <div class="result-hero-status">
+        {% if attempt.passed %}Congratulations — You Passed!{% else %}Not Passed — Keep Studying{% endif %}
+      </div>
+      <p style="font-size:.9rem;opacity:.75;margin:0;">
+        {{ attempt.quiz.title }} &nbsp;·&nbsp; {{ attempt.created_at|date:"F j, Y \a\t H:i" }}
+      </p>
+      <div class="result-score-grid">
+        <div class="result-score-cell">
+          <div class="num">{{ attempt.score }}/{{ attempt.total_questions }}</div>
+          <div class="lbl">Score</div>
+        </div>
+        <div class="result-score-cell">
+          <div class="num">{{ attempt.percentage }}%</div>
+          <div class="lbl">Percentage</div>
+        </div>
+        <div class="result-score-cell">
+          <div class="num">{{ attempt.quiz.passing_score }}%</div>
+          <div class="lbl">Required to Pass</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Action buttons ── -->
+    <div class="flex gap-2 flex-wrap" style="margin-bottom:32px;">
+      <a href="{% url 'quiz_detail' attempt.quiz.pk %}" class="btn btn-outline">
+        Try Again
+      </a>
+      <a href="{% url 'course_detail' attempt.quiz.course.slug %}" class="btn btn-ghost">
+        ← Back to Course
+      </a>
+      {% if request.user.is_student %}
+        <a href="{% url 'student_dashboard' %}" class="btn btn-ghost">
+          Dashboard
+        </a>
+      {% endif %}
+    </div>
+
+    <!-- ── Answer Review ── -->
+    <h3 style="margin-bottom:16px;">Answer Review</h3>
+
+    {% for answer in answers %}
+      <div class="answer-card {% if answer.is_correct %}correct{% else %}wrong{% endif %}">
+
+        <!-- Question header -->
+        <div class="answer-card-header">
+          <div class="answer-marker {% if answer.is_correct %}correct{% else %}wrong{% endif %}">
+            {% if answer.is_correct %}✓{% else %}✗{% endif %}
+          </div>
+          <div>
+            <div class="answer-question-number">Question {{ forloop.counter }}</div>
+            <div class="answer-question-text">{{ answer.question.question_text }}</div>
+          </div>
+        </div>
+
+        <!-- All choices with highlighting -->
+        <div class="answer-choices">
+          {% for choice in answer.question.choices.all %}
+            {% if choice.pk == answer.choice.pk and answer.is_correct %}
+              <!-- Student chose this AND it's correct -->
+              <div class="answer-choice-row chosen-correct">
+                <div class="choice-dot">✓</div>
+                <span>{{ choice.choice_text }}</span>
+                <span style="margin-left:auto;font-size:.78rem;opacity:.7;">Your answer · Correct</span>
+              </div>
+            {% elif choice.pk == answer.choice.pk and not answer.is_correct %}
+              <!-- Student chose this but it's wrong -->
+              <div class="answer-choice-row chosen-wrong">
+                <div class="choice-dot">✗</div>
+                <span>{{ choice.choice_text }}</span>
+                <span style="margin-left:auto;font-size:.78rem;opacity:.7;">Your answer · Incorrect</span>
+              </div>
+            {% elif choice.is_correct and not answer.is_correct %}
+              <!-- Show the correct answer when student got it wrong -->
+              <div class="answer-choice-row correct-answer">
+                <div class="choice-dot">✓</div>
+                <span>{{ choice.choice_text }}</span>
+                <span style="margin-left:auto;font-size:.78rem;opacity:.7;">Correct answer</span>
+              </div>
+            {% else %}
+              <!-- Unchosen, incorrect option -->
+              <div class="answer-choice-row">
+                <div class="choice-dot"></div>
+                <span>{{ choice.choice_text }}</span>
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+
+      </div>
+    {% empty %}
+      <div class="empty-state">
+        <div class="icon">📋</div>
+        <h3>No answers recorded</h3>
+        <p>This attempt has no saved answers.</p>
+      </div>
+    {% endfor %}
+
+    <!-- Bottom nav -->
+    <div class="flex gap-2 flex-wrap" style="margin-top:28px;padding-top:20px;border-top:1px solid var(--border);">
+      <a href="{% url 'quiz_detail' attempt.quiz.pk %}" class="btn btn-primary">
+        Try Again
+      </a>
+      <a href="{% url 'course_detail' attempt.quiz.course.slug %}" class="btn btn-ghost">
+        ← Back to Course
+      </a>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,182 @@
+{% extends 'base.html' %}
+{% block title %}Quiz Attempts — Teacher Analytics{% endblock %}
+
+{% block content %}
+<div class="dashboard-layout">
+
+  <!-- ── Sidebar (mirrors teacher_dashboard sidebar) ── -->
+  <aside class="sidebar">
+    <div class="sidebar-user">
+      <div class="sidebar-avatar">
+        {% if user.profile_picture %}
+          <img src="{{ user.profile_picture.url }}" alt="{{ user.get_full_name }}">
+        {% else %}
+          {{ user.first_name|first|upper }}{{ user.last_name|first|upper }}
+        {% endif %}
+      </div>
+      <div class="sidebar-name">{{ user.get_full_name|default:user.username }}</div>
+      <div class="sidebar-role">{{ user.get_role_display }}</div>
+    </div>
+    <ul class="sidebar-nav">
+      <li><a href="{% url 'teacher_dashboard' %}"><span class="nav-icon">🏠</span> Dashboard</a></li>
+      <li><a href="{% url 'course_create' %}"><span class="nav-icon">➕</span> New Course</a></li>
+      <li><a href="{% url 'course_list' %}"><span class="nav-icon">📚</span> View Courses</a></li>
+      <li>
+        <a href="{% url 'teacher_attempts' %}" class="active">
+          <span class="nav-icon">📊</span> Quiz Attempts
+        </a>
+      </li>
+      <li><a href="{% url 'profile' %}"><span class="nav-icon">👤</span> My Profile</a></li>
+      <li><a href="{% url 'logout' %}"><span class="nav-icon">🚪</span> Sign Out</a></li>
+    </ul>
+  </aside>
+
+  <!-- ── Main content ── -->
+  <div class="dashboard-main">
+
+    <!-- Header -->
+    <div class="dashboard-header">
+      <h1>Quiz Attempts</h1>
+      <p>All student quiz submissions across your courses.</p>
+    </div>
+
+    <!-- Summary stats -->
+    <div class="stats-row" style="margin-bottom:28px;">
+      <div class="stat-card">
+        <div class="stat-card-icon">📝</div>
+        <div>
+          <div class="stat-card-num">{{ attempts.count }}</div>
+          <div class="stat-card-label">Total Attempts</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-icon" style="background:#e8f8ef;color:var(--success);">✅</div>
+        <div>
+          <div class="stat-card-num">{{ attempts|length }}</div>
+          <div class="stat-card-label">
+            {# Count passes inline — avoids extra view logic #}
+            Submissions
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filter bar -->
+    {% if attempts %}
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 18px;margin-bottom:20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span style="font-size:.85rem;color:var(--text-3);">
+          Showing <strong style="color:var(--text);">{{ attempts.count }}</strong>
+          attempt{{ attempts.count|pluralize }} across all your courses
+        </span>
+      </div>
+
+      <!-- Attempts table -->
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>Quiz</th>
+              <th>Course</th>
+              <th>Score</th>
+              <th>Percentage</th>
+              <th>Status</th>
+              <th>Date</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for attempt in attempts %}
+              <tr>
+                <!-- Student -->
+                <td>
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <div class="teacher-avatar"
+                         style="width:28px;height:28px;font-size:.65rem;flex-shrink:0;">
+                      {% if attempt.student.profile_picture %}
+                        <img src="{{ attempt.student.profile_picture.url }}" alt="">
+                      {% else %}
+                        {{ attempt.student.first_name|first|upper }}{{ attempt.student.last_name|first|upper }}
+                      {% endif %}
+                    </div>
+                    <div>
+                      <div style="font-weight:600;font-size:.88rem;color:var(--text);">
+                        {{ attempt.student.get_full_name|default:attempt.student.username }}
+                      </div>
+                      <div style="font-size:.75rem;color:var(--text-3);">
+                        @{{ attempt.student.username }}
+                      </div>
+                    </div>
+                  </div>
+                </td>
+
+                <!-- Quiz -->
+                <td style="font-weight:500;color:var(--text);">
+                  {{ attempt.quiz.title }}
+                </td>
+
+                <!-- Course -->
+                <td>
+                  <a href="{% url 'course_detail' attempt.quiz.course.slug %}"
+                     style="font-size:.88rem;color:var(--primary);">
+                    {{ attempt.quiz.course.title }}
+                  </a>
+                </td>
+
+                <!-- Score -->
+                <td>
+                  <strong>{{ attempt.score }}</strong>
+                  <span style="color:var(--text-3);">/ {{ attempt.total_questions }}</span>
+                </td>
+
+                <!-- Percentage -->
+                <td>
+                  <span style="font-weight:600;">{{ attempt.percentage }}%</span>
+                  <div style="height:4px;background:var(--surface-2);border-radius:2px;margin-top:4px;width:70px;">
+                    <div style="height:100%;width:{{ attempt.percentage }}%;background:{% if attempt.passed %}var(--success){% else %}var(--danger){% endif %};border-radius:2px;max-width:100%;"></div>
+                  </div>
+                </td>
+
+                <!-- Status -->
+                <td>
+                  {% if attempt.passed %}
+                    <span class="badge badge-green">✓ Passed</span>
+                  {% else %}
+                    <span class="badge badge-red">✗ Failed</span>
+                  {% endif %}
+                </td>
+
+                <!-- Date -->
+                <td style="font-size:.8rem;color:var(--text-3);white-space:nowrap;">
+                  {{ attempt.created_at|date:"M d, Y" }}<br>
+                  <span style="font-size:.75rem;">{{ attempt.created_at|date:"H:i" }}</span>
+                </td>
+
+                <!-- Actions -->
+                <td>
+                  <a href="{% url 'attempt_detail' attempt.pk %}"
+                     class="btn btn-sm btn-outline">
+                    Review
+                  </a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+    {% else %}
+      <div class="empty-state"
+           style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);">
+        <div class="icon">📊</div>
+        <h3>No attempts yet</h3>
+        <p>When students complete quizzes in your courses, their attempts will appear here.</p>
+        <a href="{% url 'teacher_dashboard' %}" class="btn btn-outline" style="margin-top:16px;">
+          Back to Dashboard
+        </a>
+      </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

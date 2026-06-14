@@ -13,5 +13,6 @@ urlpatterns = [
     path('about/', course_views.about, name='about'),
     path('accounts/', include('accounts.urls')),
     path('courses/', include('courses.urls')),
+    path('assessments/', include('assessments.urls')),   # Phase 3B
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) \
   + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

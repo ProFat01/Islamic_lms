@@ -6,6 +6,8 @@ from django.db.models import Q
 from .models import Category, Course, Lesson, Enrollment
 from .forms import CourseForm, LessonForm
 from accounts.models import User
+# Phase 3B — quiz context for dashboards
+from assessments.models import Quiz, QuizAttempt
 
 
 # ─────────────────────────────────────────────
@@ -13,24 +15,12 @@ from accounts.models import User
 # ─────────────────────────────────────────────
 
 def home(request):
-    """Home page with featured courses, teachers, and categories."""
-    featured_courses = (
-        Course.objects
-        .filter(is_published=True)
-        .select_related('category', 'teacher')[:6]
-    )
+    """Home page with featured courses and teachers."""
+    featured_courses = Course.objects.filter(is_published=True)[:6]
     teachers = User.objects.filter(role=User.Role.TEACHER, is_active=True)[:4]
-    # Only show categories that contain at least one published course
-    featured_categories = (
-        Category.objects
-        .filter(courses__is_published=True)
-        .distinct()
-        .order_by('name')[:8]
-    )
     context = {
         'featured_courses': featured_courses,
         'teachers': teachers,
-        'featured_categories': featured_categories,
     }
     return render(request, 'home.html', context)
 
@@ -41,42 +31,23 @@ def about(request):
 
 
 def course_list(request):
-    """
-    Public list of all published courses.
-    Supports filtering by level, category slug, and free-text search.
-    All three filters compose together with AND logic.
-    """
-    level_filter    = request.GET.get('level', '').strip()
-    category_filter = request.GET.get('category', '').strip()
-    search_query    = request.GET.get('q', '').strip()
+    """Public list of all published courses."""
+    level_filter    = request.GET.get('level', '')
+    category_filter = request.GET.get('category', '')
 
-    courses = (
-        Course.objects
-        .filter(is_published=True)
-        .select_related('category', 'teacher')
-    )
+    courses = Course.objects.filter(is_published=True).select_related('category', 'teacher')
 
     if level_filter:
         courses = courses.filter(level=level_filter)
-
     if category_filter:
         courses = courses.filter(category__slug=category_filter)
-
-    if search_query:
-        courses = courses.filter(
-            Q(title__icontains=search_query)
-            | Q(short_description__icontains=search_query)
-            | Q(category__name__icontains=search_query)
-        ).distinct()
 
     context = {
         'courses': courses,
         'level_filter': level_filter,
         'category_filter': category_filter,
-        'search_query': search_query,
         'levels': Course.Level.choices,
         'categories': Category.objects.all(),
-        'any_filter': bool(level_filter or category_filter or search_query),
     }
     return render(request, 'courses/course_list.html', context)
 
@@ -96,6 +67,31 @@ def course_detail(request, slug):
         'is_enrolled': is_enrolled,
     }
     return render(request, 'courses/course_detail.html', context)
+
+
+# ─────────────────────────────────────────────
+#  ENROLLMENT
+# ─────────────────────────────────────────────
+
+@login_required
+def enroll(request, slug):
+    """Enroll the current student in a course."""
+    course = get_object_or_404(Course, slug=slug, is_published=True)
+
+    if not request.user.is_student:
+        messages.error(request, "Only students can enroll in courses.")
+        return redirect('course_detail', slug=slug)
+
+    _, created = Enrollment.objects.get_or_create(
+        student=request.user, course=course
+    )
+    if created:
+        messages.success(request, f"You are now enrolled in '{course.title}'!")
+    else:
+        messages.info(request, "You are already enrolled in this course.")
+
+    return redirect('course_detail', slug=slug)
+
 
 
 def category_detail(request, slug):
@@ -124,30 +120,6 @@ def category_detail(request, slug):
         'other_categories': other_categories,
     }
     return render(request, 'courses/category_detail.html', context)
-
-
-# ─────────────────────────────────────────────
-#  ENROLLMENT
-# ─────────────────────────────────────────────
-
-@login_required
-def enroll(request, slug):
-    """Enroll the current student in a course."""
-    course = get_object_or_404(Course, slug=slug, is_published=True)
-
-    if not request.user.is_student:
-        messages.error(request, "Only students can enroll in courses.")
-        return redirect('course_detail', slug=slug)
-
-    _, created = Enrollment.objects.get_or_create(
-        student=request.user, course=course
-    )
-    if created:
-        messages.success(request, f"You are now enrolled in '{course.title}'!")
-    else:
-        messages.info(request, "You are already enrolled in this course.")
-
-    return redirect('course_detail', slug=slug)
 
 
 # ─────────────────────────────────────────────
@@ -198,8 +170,26 @@ def student_dashboard(request):
         student=request.user
     ).select_related('course', 'course__teacher')
 
+    # Phase 3B: quizzes available to this student (courses they are enrolled in)
+    enrolled_course_ids = enrollments.values_list('course_id', flat=True)
+    available_quizzes = (
+        Quiz.objects
+        .filter(course_id__in=enrolled_course_ids)
+        .select_related('course')
+        .order_by('-created_at')[:10]
+    )
+    # Most recent quiz attempts by this student
+    recent_attempts = (
+        QuizAttempt.objects
+        .filter(student=request.user)
+        .select_related('quiz', 'quiz__course')
+        .order_by('-created_at')[:5]
+    )
+
     context = {
         'enrollments': enrollments,
+        'available_quizzes': available_quizzes,
+        'recent_attempts': recent_attempts,
     }
     return render(request, 'courses/student_dashboard.html', context)
 
@@ -216,11 +206,21 @@ def teacher_dashboard(request):
             return redirect('student_dashboard')
         return redirect('home')
 
-    courses = Course.objects.filter(teacher=request.user).select_related('category')
+    courses = Course.objects.filter(teacher=request.user)
+
+    # Phase 3B: 5 most recent quiz attempts across this teacher's courses
+    recent_attempts = (
+        QuizAttempt.objects
+        .filter(quiz__course__teacher=request.user)
+        .select_related('student', 'quiz', 'quiz__course')
+        .order_by('-created_at')[:5]
+    )
+
     context = {
         'courses': courses,
         'total_courses': courses.count(),
         'published_count': courses.filter(is_published=True).count(),
+        'recent_attempts': recent_attempts,
     }
     return render(request, 'courses/teacher_dashboard.html', context)
 

@@ -1,0 +1,125 @@
+{% extends 'base.html' %}
+{% block title %}{{ quiz.title }}{% endblock %}
+
+{% block content %}
+<div class="section-sm">
+  <div class="container" style="max-width:760px;">
+
+    <!-- Breadcrumb -->
+    <div class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="sep">›</span>
+      <a href="{% url 'course_detail' quiz.course.slug %}">{{ quiz.course.title }}</a>
+      <span class="sep">›</span>
+      <span>{{ quiz.title }}</span>
+    </div>
+
+    <!-- Quiz Info Card -->
+    <div class="card" style="margin-top:16px;">
+      <div class="card-body">
+
+        <!-- Header row -->
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:20px;">
+          <div>
+            <div class="flex gap-1" style="margin-bottom:8px;">
+              <span class="badge badge-gold">📝 Quiz</span>
+              <span class="badge badge-teal">{{ quiz.course.title }}</span>
+            </div>
+            <h1 style="font-size:1.7rem;margin-bottom:6px;">{{ quiz.title }}</h1>
+            {% if quiz.description %}
+              <p style="color:var(--text-2);line-height:1.7;">{{ quiz.description }}</p>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Stats grid -->
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-bottom:28px;">
+          <div style="background:var(--surface-2);border-radius:var(--radius);padding:16px;text-align:center;">
+            <div style="font-size:1.8rem;font-weight:700;color:var(--primary);font-family:var(--font-display);">{{ question_count }}</div>
+            <div style="font-size:.8rem;color:var(--text-3);margin-top:2px;">Questions</div>
+          </div>
+          <div style="background:var(--surface-2);border-radius:var(--radius);padding:16px;text-align:center;">
+            <div style="font-size:1.8rem;font-weight:700;color:var(--gold);font-family:var(--font-display);">{{ quiz.passing_score }}%</div>
+            <div style="font-size:.8rem;color:var(--text-3);margin-top:2px;">Passing Score</div>
+          </div>
+          <div style="background:var(--surface-2);border-radius:var(--radius);padding:16px;text-align:center;">
+            <div style="font-size:1.8rem;font-weight:700;color:var(--text);font-family:var(--font-display);">{{ previous_attempts.count }}</div>
+            <div style="font-size:.8rem;color:var(--text-3);margin-top:2px;">Your Attempts</div>
+          </div>
+        </div>
+
+        <!-- Instructions -->
+        <div style="background:var(--primary-l);border:1px solid rgba(26,107,94,.15);border-radius:var(--radius-sm);padding:16px;margin-bottom:24px;">
+          <h4 style="margin-bottom:8px;color:var(--primary);">📋 Before You Begin</h4>
+          <ul style="color:var(--text-2);font-size:.9rem;line-height:1.9;padding-left:18px;">
+            <li>Answer every question — you cannot submit with unanswered questions.</li>
+            <li>Each question has one correct answer.</li>
+            <li>You must score at least <strong>{{ quiz.passing_score }}%</strong> to pass.</li>
+            <li>Your answers and score will be saved when you submit.</li>
+          </ul>
+        </div>
+
+        <!-- Action buttons -->
+        {% if request.user.is_student %}
+          {% if question_count > 0 %}
+            <a href="{% url 'quiz_take' quiz.pk %}" class="btn btn-primary btn-lg">
+              Start Quiz →
+            </a>
+          {% else %}
+            <div class="alert alert-warning" style="cursor:default;">
+              ⚠️ This quiz has no questions yet. Check back later.
+            </div>
+          {% endif %}
+        {% endif %}
+
+        <a href="{% url 'course_detail' quiz.course.slug %}" class="btn btn-ghost" style="margin-left:8px;">
+          ← Back to Course
+        </a>
+
+      </div>
+    </div>
+
+    <!-- Previous Attempts -->
+    {% if previous_attempts %}
+      <div style="margin-top:32px;">
+        <h3 style="margin-bottom:14px;">Your Previous Attempts</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Score</th>
+                <th>Percentage</th>
+                <th>Status</th>
+                <th>Date</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for attempt in previous_attempts %}
+                <tr>
+                  <td style="color:var(--text-3);">{{ forloop.counter }}</td>
+                  <td><strong>{{ attempt.score }}</strong> / {{ attempt.total_questions }}</td>
+                  <td>{{ attempt.percentage }}%</td>
+                  <td>
+                    {% if attempt.passed %}
+                      <span class="badge badge-green">✓ Passed</span>
+                    {% else %}
+                      <span class="badge badge-red">✗ Failed</span>
+                    {% endif %}
+                  </td>
+                  <td style="font-size:.82rem;color:var(--text-3);">{{ attempt.created_at|date:"M d, Y H:i" }}</td>
+                  <td>
+                    <a href="{% url 'attempt_detail' attempt.pk %}" class="btn btn-sm btn-outline">Review</a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

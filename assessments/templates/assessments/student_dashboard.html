@@ -1,0 +1,176 @@
+{% extends 'base.html' %}
+{% block title %}My Dashboard{% endblock %}
+
+{% block content %}
+<div class="dashboard-layout">
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-user">
+      <div class="sidebar-avatar">
+        {% if user.profile_picture %}
+          <img src="{{ user.profile_picture.url }}" alt="{{ user.get_full_name }}">
+        {% else %}
+          {{ user.first_name|first|upper }}{{ user.last_name|first|upper }}
+        {% endif %}
+      </div>
+      <div class="sidebar-name">{{ user.get_full_name|default:user.username }}</div>
+      <div class="sidebar-role">{{ user.get_role_display }}</div>
+    </div>
+    <ul class="sidebar-nav">
+      <li><a href="{% url 'student_dashboard' %}" class="active"><span class="nav-icon">🏠</span> Dashboard</a></li>
+      <li><a href="{% url 'course_list' %}"><span class="nav-icon">📚</span> Browse Courses</a></li>
+      <li><a href="{% url 'profile' %}"><span class="nav-icon">👤</span> My Profile</a></li>
+      <li><a href="{% url 'logout' %}"><span class="nav-icon">🚪</span> Sign Out</a></li>
+    </ul>
+  </aside>
+
+  <!-- Main -->
+  <div class="dashboard-main">
+    <div class="dashboard-header">
+      <h1>Assalamu Alaikum, {{ user.first_name|default:user.username }}! 👋</h1>
+      <p>Continue your Islamic learning journey.</p>
+    </div>
+
+    <!-- Stats -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-card-icon">📚</div>
+        <div>
+          <div class="stat-card-num">{{ enrollments.count }}</div>
+          <div class="stat-card-label">Enrolled Courses</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-icon">🕌</div>
+        <div>
+          <div class="stat-card-num">—</div>
+          <div class="stat-card-label">Progress (Phase 2)</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Enrolled Courses -->
+    <div class="action-bar">
+      <h3>My Courses</h3>
+      <a href="{% url 'course_list' %}" class="btn btn-outline btn-sm">Browse More Courses</a>
+    </div>
+
+    {% if enrollments %}
+      <div class="grid-3">
+        {% for enrollment in enrollments %}
+          <div class="card course-card">
+            {% if enrollment.course.thumbnail %}
+              <img src="{{ enrollment.course.thumbnail.url }}" alt="{{ enrollment.course.title }}" class="course-card-thumb">
+            {% else %}
+              <div class="course-card-thumb-placeholder">📖</div>
+            {% endif %}
+            <div class="course-card-body">
+              <h3 class="course-card-title">{{ enrollment.course.title }}</h3>
+              <p class="course-card-desc" style="font-size:.85rem;">{{ enrollment.course.short_description|truncatewords:12 }}</p>
+              <div class="flex gap-1 flex-wrap mt-1">
+                <span class="badge badge-teal">{{ enrollment.course.get_level_display }}</span>
+                <span class="badge badge-gray">📚 {{ enrollment.course.lesson_count }} lessons</span>
+              </div>
+              <div style="margin-top:8px;padding:8px 0;border-top:1px solid var(--border);">
+                <!-- Progress placeholder for Phase 2 -->
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+                  <span style="font-size:.78rem;color:var(--text-3);">Progress</span>
+                  <span style="font-size:.78rem;color:var(--text-3);">Coming in Phase 2</span>
+                </div>
+                <div style="height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden;">
+                  <div style="height:100%;width:0%;background:var(--primary);border-radius:3px;"></div>
+                </div>
+              </div>
+              <div class="flex gap-2 mt-2" style="margin-top:10px;">
+                {% if enrollment.course.lessons.count > 0 %}
+                  <a href="{% url 'lesson_view' enrollment.course.slug enrollment.course.lessons.first.id %}" class="btn btn-primary btn-sm" style="flex:1;justify-content:center;">Continue →</a>
+                {% endif %}
+                <a href="{% url 'course_detail' enrollment.course.slug %}" class="btn btn-ghost btn-sm">Details</a>
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);">
+        <div class="icon">📖</div>
+        <h3>No courses yet</h3>
+        <p>Enroll in your first Islamic course and start learning today.</p>
+        <a href="{% url 'course_list' %}" class="btn btn-primary mt-3" style="margin-top:16px;">Browse Courses</a>
+      </div>
+    {% endif %}
+
+    <!-- ── Phase 3B: Available Quizzes ── -->
+    {% if available_quizzes %}
+      <div class="action-bar" style="margin-top:36px;">
+        <h3>Available Quizzes</h3>
+      </div>
+      <div class="grid-3">
+        {% for quiz in available_quizzes %}
+          <div class="card" style="padding:20px;">
+            <div class="flex gap-1" style="margin-bottom:8px;flex-wrap:wrap;">
+              <span class="badge badge-gold">📝 Quiz</span>
+              <span class="badge badge-gray">{{ quiz.course.title }}</span>
+            </div>
+            <h4 style="margin-bottom:6px;">{{ quiz.title }}</h4>
+            <p style="font-size:.85rem;color:var(--text-3);margin-bottom:12px;">
+              {{ quiz.questions.count }} question{{ quiz.questions.count|pluralize }}
+              &nbsp;·&nbsp; Pass at {{ quiz.passing_score }}%
+            </p>
+            <a href="{% url 'quiz_detail' quiz.pk %}" class="btn btn-outline btn-sm"
+               style="width:100%;justify-content:center;">
+              View Quiz →
+            </a>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    <!-- ── Phase 3B: Recent Quiz Attempts ── -->
+    {% if recent_attempts %}
+      <div class="action-bar" style="margin-top:36px;">
+        <h3>Recent Quiz Attempts</h3>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Quiz</th>
+              <th>Score</th>
+              <th>Percentage</th>
+              <th>Status</th>
+              <th>Date</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for attempt in recent_attempts %}
+              <tr>
+                <td>
+                  <div style="font-weight:600;font-size:.88rem;color:var(--text);">{{ attempt.quiz.title }}</div>
+                  <div style="font-size:.75rem;color:var(--text-3);">{{ attempt.quiz.course.title }}</div>
+                </td>
+                <td><strong>{{ attempt.score }}</strong> / {{ attempt.total_questions }}</td>
+                <td>{{ attempt.percentage }}%</td>
+                <td>
+                  {% if attempt.passed %}
+                    <span class="badge badge-green">✓ Passed</span>
+                  {% else %}
+                    <span class="badge badge-red">✗ Failed</span>
+                  {% endif %}
+                </td>
+                <td style="font-size:.8rem;color:var(--text-3);">{{ attempt.created_at|date:"M d, Y" }}</td>
+                <td>
+                  <a href="{% url 'attempt_detail' attempt.pk %}" class="btn btn-sm btn-outline">Review</a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

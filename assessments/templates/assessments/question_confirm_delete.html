@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}Delete Question{% endblock %}
+
+{% block content %}
+<div class="section-sm">
+  <div class="container">
+    <div class="confirm-card">
+      <div class="icon">⚠️</div>
+      <h2 style="margin-bottom:10px;">Delete Question</h2>
+
+      <p style="margin-bottom:6px;">You are about to permanently delete this question:</p>
+      <div style="background:var(--surface-2);border-radius:var(--radius-sm);padding:12px 16px;margin:12px 0;font-style:italic;color:var(--text-2);font-size:.95rem;line-height:1.6;text-align:left;">
+        "{{ question.question_text }}"
+      </div>
+      <p style="font-size:.88rem;color:var(--text-3);margin-bottom:4px;">
+        Quiz: <strong style="color:var(--text);">{{ quiz.title }}</strong>
+      </p>
+      <p style="font-size:.88rem;color:var(--text-3);">
+        Course: <strong style="color:var(--text);">{{ quiz.course.title }}</strong>
+      </p>
+
+      <!-- Impact -->
+      <div style="background:var(--surface-2);border-radius:var(--radius-sm);padding:14px 18px;margin:16px 0;text-align:left;font-size:.88rem;color:var(--text-2);line-height:1.8;">
+        <strong style="color:var(--danger);">This will also delete:</strong><br>
+        • {{ question.choices.count }} answer choice{{ question.choices.count|pluralize }}<br>
+        • All student answers referencing this question<br>
+        <br>
+        <strong>This action cannot be undone.</strong>
+      </div>
+
+      <div class="flex-center gap-2">
+        <form method="post">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-danger">Yes, Delete Question</button>
+        </form>
+        <a href="{% url 'teacher_question_list' quiz.pk %}" class="btn btn-ghost">Cancel</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

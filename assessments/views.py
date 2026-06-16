@@ -1,32 +1,35 @@
 """
 assessments/views.py
 
-Four views for Phase 3B:
+Phase 3B views (unchanged)
+--------------------------
+  quiz_detail       GET  /assessments/quiz/<id>/
+  quiz_take         GET  /assessments/quiz/<id>/take/
+  quiz_submit       POST /assessments/quiz/<id>/submit/
+  attempt_detail    GET  /assessments/attempt/<id>/
+  teacher_attempts  GET  /assessments/teacher/attempts/
 
-  quiz_detail      GET   /assessments/quiz/<id>/
-                         Landing page before a student starts the quiz.
+Phase 3C views (new — teacher quiz management)
+----------------------------------------------
+  teacher_quiz_list       GET      /assessments/teacher/quizzes/
+  teacher_quiz_create     GET/POST /assessments/teacher/quizzes/create/
+  teacher_quiz_edit       GET/POST /assessments/teacher/quizzes/<id>/edit/
+  teacher_quiz_delete     GET/POST /assessments/teacher/quizzes/<id>/delete/
+  teacher_question_list   GET      /assessments/teacher/quizzes/<id>/questions/
+  teacher_question_create GET/POST /assessments/teacher/questions/create/<quiz_id>/
+  teacher_question_edit   GET/POST /assessments/teacher/questions/<id>/edit/
+  teacher_question_delete GET/POST /assessments/teacher/questions/<id>/delete/
+  teacher_choice_list     GET      /assessments/teacher/questions/<id>/choices/
+  teacher_choice_create   GET/POST /assessments/teacher/questions/<id>/choices/create/
+  teacher_choice_edit     GET/POST /assessments/teacher/choices/<id>/edit/
+  teacher_choice_delete   GET/POST /assessments/teacher/choices/<id>/delete/
 
-  quiz_take        GET   /assessments/quiz/<id>/take/
-                         Renders the quiz form (all questions + radio buttons).
-
-  quiz_submit      POST  /assessments/quiz/<id>/submit/
-                         Processes the submitted form, scores it, creates
-                         QuizAttempt and StudentAnswer rows, redirects to result.
-
-  attempt_detail   GET   /assessments/attempt/<id>/
-                         Shows a student their scored attempt with per-answer
-                         feedback (correct / incorrect).
-
-  teacher_attempts GET   /assessments/teacher/attempts/
-                         Teacher view — all attempts across all their courses.
-
-Security rules applied consistently:
-  - @login_required on every view.
-  - Students may only access quizzes for courses they are enrolled in.
-  - Students may only view their own attempts.
-  - Teachers may only view attempts for quizzes in their own courses.
-  - PermissionDenied is raised (not a soft redirect) for security violations
-    so Django returns a proper 403 response.
+Security model (enforced on every teacher view)
+-----------------------------------------------
+  1. @login_required
+  2. is_teacher check — non-teachers receive PermissionDenied
+  3. Ownership check — teachers can only manage objects in their own courses
+     (verified through the Course.teacher FK chain)
 """
 
 from decimal import Decimal
@@ -36,64 +39,62 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 
-from courses.models import Enrollment
-from .forms import QuizAttemptForm
+from courses.models import Course, Enrollment
+from .forms import ChoiceForm, QuestionForm, QuizAttemptForm, QuizForm
 from .models import Choice, Question, Quiz, QuizAttempt, StudentAnswer
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Helpers
+# Shared security helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
+def _require_teacher(user):
+    """Raise PermissionDenied if the user is not a teacher."""
+    if not user.is_teacher:
+        raise PermissionDenied
+
+
 def _require_enrollment(user, quiz):
-    """
-    Raise PermissionDenied if the user is not enrolled in the quiz's course.
-    Call this in every student-facing quiz view before rendering anything.
-    """
-    enrolled = Enrollment.objects.filter(
-        student=user,
-        course=quiz.course,
-    ).exists()
-    if not enrolled:
+    """Raise PermissionDenied if the student is not enrolled in the quiz's course."""
+    if not Enrollment.objects.filter(student=user, course=quiz.course).exists():
         raise PermissionDenied
 
 
 def _require_teacher_owns_quiz(user, quiz):
-    """
-    Raise PermissionDenied if the teacher does not own the quiz's course.
-    """
+    """Raise PermissionDenied if the teacher does not own the quiz's course."""
     if quiz.course.teacher != user:
         raise PermissionDenied
 
 
+def _require_teacher_owns_question(user, question):
+    """Raise PermissionDenied if the teacher does not own the question's quiz's course."""
+    if question.quiz.course.teacher != user:
+        raise PermissionDenied
+
+
+def _require_teacher_owns_choice(user, choice):
+    """Raise PermissionDenied if the teacher does not own the choice's question's quiz's course."""
+    if choice.question.quiz.course.teacher != user:
+        raise PermissionDenied
+
+
 # ─────────────────────────────────────────────────────────────────────────────
-# Student views
+# Phase 3B — Student views (UNCHANGED)
 # ─────────────────────────────────────────────────────────────────────────────
 
 @login_required
 def quiz_detail(request, quiz_id):
-    """
-    Landing page for a quiz.
-
-    Shows: title, description, number of questions, passing score, and a
-    "Start Quiz" button that leads to quiz_take.
-
-    Also shows the student's previous attempts on this quiz (if any),
-    so they know their history before starting again.
-    """
+    """Landing page for a quiz — shows metadata and the student's attempt history."""
     quiz = get_object_or_404(
         Quiz.objects.select_related('course', 'course__teacher'),
         pk=quiz_id,
     )
 
-    # Only enrolled students (or the course's teacher) may view the quiz detail
     if request.user.is_student:
         _require_enrollment(request.user, quiz)
     elif request.user.is_teacher:
         _require_teacher_owns_quiz(request.user, quiz)
-    # Admin users pass through without restriction
 
-    # Previous attempts by this user on this specific quiz
     previous_attempts = []
     if request.user.is_student:
         previous_attempts = (
@@ -112,17 +113,8 @@ def quiz_detail(request, quiz_id):
 
 @login_required
 def quiz_take(request, quiz_id):
-    """
-    Renders the quiz form (all questions with radio-button choices).
-
-    GET only — the form is displayed here; submission goes to quiz_submit.
-    If the student somehow GETs this page via a POST (e.g. browser back
-    button after submission) they are redirected to the detail page.
-    """
-    quiz = get_object_or_404(
-        Quiz.objects.select_related('course'),
-        pk=quiz_id,
-    )
+    """Renders the quiz form with one radio-button field per question."""
+    quiz = get_object_or_404(Quiz.objects.select_related('course'), pk=quiz_id)
 
     if not request.user.is_student:
         messages.error(request, "Only students can take quizzes.")
@@ -130,17 +122,14 @@ def quiz_take(request, quiz_id):
 
     _require_enrollment(request.user, quiz)
 
-    # Ensure the quiz has questions before allowing the student to start
     if not quiz.questions.exists():
         messages.warning(request, "This quiz has no questions yet.")
         return redirect('quiz_detail', quiz_id=quiz.pk)
 
     form = QuizAttemptForm(quiz=quiz)
-
     context = {
         'quiz': quiz,
         'form': form,
-        # Pass total count for "Question X of N" headings in the template
         'total_questions': quiz.questions.count(),
     }
     return render(request, 'assessments/quiz_take.html', context)
@@ -148,30 +137,11 @@ def quiz_take(request, quiz_id):
 
 @login_required
 def quiz_submit(request, quiz_id):
-    """
-    Handles POST submission of a quiz attempt.
-
-    Steps:
-      1. Validate the form (every question must have a selected choice).
-      2. Create a QuizAttempt row (with placeholder scores).
-      3. Iterate questions; for each, look up the submitted choice,
-         check correctness, save a StudentAnswer row.
-      4. Calculate score, total_questions, percentage, passed.
-      5. Update and save the QuizAttempt with final scores.
-      6. Redirect to attempt_detail.
-
-    If the form is invalid (a question was skipped), re-render quiz_take
-    with the validation errors so the student can correct them.
-
-    Only accepts POST to prevent replay via browser refresh.
-    """
+    """Processes a submitted quiz, scores it, and redirects to attempt_detail."""
     if request.method != 'POST':
         return redirect('quiz_take', quiz_id=quiz_id)
 
-    quiz = get_object_or_404(
-        Quiz.objects.select_related('course'),
-        pk=quiz_id,
-    )
+    quiz = get_object_or_404(Quiz.objects.select_related('course'), pk=quiz_id)
 
     if not request.user.is_student:
         raise PermissionDenied
@@ -181,7 +151,6 @@ def quiz_submit(request, quiz_id):
     form = QuizAttemptForm(quiz=quiz, data=request.POST)
 
     if not form.is_valid():
-        # Re-render the quiz with errors; student must answer all questions
         context = {
             'quiz': quiz,
             'form': form,
@@ -189,16 +158,9 @@ def quiz_submit(request, quiz_id):
         }
         return render(request, 'assessments/quiz_take.html', context)
 
-    # ── Fetch all questions + their correct choices in two DB queries ─────
-    questions = (
-        Question.objects
-        .filter(quiz=quiz)
-        .prefetch_related('choices')
-        .order_by('order')
-    )
+    questions       = Question.objects.filter(quiz=quiz).prefetch_related('choices').order_by('order')
     total_questions = questions.count()
 
-    # ── Create the attempt row (scores filled in below) ───────────────────
     attempt = QuizAttempt.objects.create(
         student=request.user,
         quiz=quiz,
@@ -208,13 +170,10 @@ def quiz_submit(request, quiz_id):
         passed=False,
     )
 
-    # ── Score each answer and create StudentAnswer rows ───────────────────
     score = 0
     for question in questions:
-        field_name  = f'question_{question.pk}'
-        choice_pk   = form.cleaned_data[field_name]
-
-        # get_object_or_404 guards against a tampered POST with a fake choice PK
+        field_name    = f'question_{question.pk}'
+        choice_pk     = form.cleaned_data[field_name]
         chosen_choice = get_object_or_404(Choice, pk=choice_pk, question=question)
         is_correct    = chosen_choice.is_correct
 
@@ -224,24 +183,19 @@ def quiz_submit(request, quiz_id):
             choice=chosen_choice,
             is_correct=is_correct,
         )
-
         if is_correct:
             score += 1
 
-    # ── Calculate final scores ────────────────────────────────────────────
-    if total_questions > 0:
-        percentage = Decimal(score) / Decimal(total_questions) * Decimal('100')
-        # Round to 2 dp to match DecimalField(decimal_places=2)
-        percentage = percentage.quantize(Decimal('0.01'))
-    else:
-        percentage = Decimal('0.00')
-
+    percentage = (
+        (Decimal(score) / Decimal(total_questions) * Decimal('100')).quantize(Decimal('0.01'))
+        if total_questions > 0
+        else Decimal('0.00')
+    )
     passed = percentage >= Decimal(quiz.passing_score)
 
-    # ── Persist final scores ──────────────────────────────────────────────
-    attempt.score           = score
-    attempt.percentage      = percentage
-    attempt.passed          = passed
+    attempt.score      = score
+    attempt.percentage = percentage
+    attempt.passed     = passed
     attempt.save()
 
     result_word = "Passed" if passed else "Not passed"
@@ -254,17 +208,7 @@ def quiz_submit(request, quiz_id):
 
 @login_required
 def attempt_detail(request, attempt_id):
-    """
-    Shows the full result of one QuizAttempt.
-
-    Displays:
-      - Score / total, percentage, pass/fail status
-      - Every question with the student's chosen answer marked ✓ or ✗
-      - The correct answer for questions the student got wrong
-
-    Security: students can only view their own attempts.
-    Teachers can view any attempt on their own courses.
-    """
+    """Shows the full scored result of one QuizAttempt with per-answer feedback."""
     attempt = get_object_or_404(
         QuizAttempt.objects.select_related(
             'student', 'quiz', 'quiz__course', 'quiz__course__teacher'
@@ -272,16 +216,13 @@ def attempt_detail(request, attempt_id):
         pk=attempt_id,
     )
 
-    # Enforce ownership
     if request.user.is_student:
         if attempt.student != request.user:
             raise PermissionDenied
     elif request.user.is_teacher:
         if attempt.quiz.course.teacher != request.user:
             raise PermissionDenied
-    # Admin passes through
 
-    # Fetch all answers with their related question and chosen choice
     answers = (
         attempt.answers
         .select_related('question', 'choice')
@@ -289,26 +230,13 @@ def attempt_detail(request, attempt_id):
         .order_by('question__order')
     )
 
-    context = {
-        'attempt': attempt,
-        'answers': answers,
-    }
+    context = {'attempt': attempt, 'answers': answers}
     return render(request, 'assessments/attempt_detail.html', context)
 
 
-# ─────────────────────────────────────────────────────────────────────────────
-# Teacher view
-# ─────────────────────────────────────────────────────────────────────────────
-
 @login_required
 def teacher_attempts(request):
-    """
-    Lists all quiz attempts across all quizzes belonging to the teacher's
-    courses, ordered most-recent first.
-
-    Security: if a non-teacher accesses this view they are redirected or
-    denied rather than shown an empty page.
-    """
+    """Lists all quiz attempts across the teacher's courses."""
     if not request.user.is_teacher:
         if request.user.is_student:
             return redirect('student_dashboard')
@@ -321,7 +249,302 @@ def teacher_attempts(request):
         .order_by('-created_at')
     )
 
-    context = {
-        'attempts': attempts,
-    }
+    context = {'attempts': attempts}
     return render(request, 'assessments/teacher_attempts.html', context)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 3C — Teacher Quiz Management
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Quiz CRUD ─────────────────────────────────────────────────────────────────
+
+@login_required
+def teacher_quiz_list(request):
+    """
+    Lists all quizzes belonging to the logged-in teacher's courses.
+    Includes attempt count per quiz for at-a-glance analytics.
+    """
+    _require_teacher(request.user)
+
+    quizzes = (
+        Quiz.objects
+        .filter(course__teacher=request.user)
+        .select_related('course')
+        .order_by('course__title', 'created_at')
+    )
+
+    context = {'quizzes': quizzes}
+    return render(request, 'assessments/teacher_quiz_list.html', context)
+
+
+@login_required
+def teacher_quiz_create(request):
+    """Teacher creates a new Quiz, then is redirected to manage its questions."""
+    _require_teacher(request.user)
+
+    if request.method == 'POST':
+        form = QuizForm(request.POST, teacher=request.user)
+        if form.is_valid():
+            quiz = form.save()
+            messages.success(request, f"Quiz '{quiz.title}' created successfully.")
+            return redirect('teacher_question_list', quiz_id=quiz.pk)
+    else:
+        form = QuizForm(teacher=request.user)
+
+    context = {'form': form, 'action': 'Create'}
+    return render(request, 'assessments/quiz_form.html', context)
+
+
+@login_required
+def teacher_quiz_edit(request, quiz_id):
+    """Teacher edits an existing quiz they own."""
+    _require_teacher(request.user)
+
+    quiz = get_object_or_404(Quiz.objects.select_related('course'), pk=quiz_id)
+    _require_teacher_owns_quiz(request.user, quiz)
+
+    if request.method == 'POST':
+        # teacher=request.user keeps the course dropdown scoped to their courses
+        form = QuizForm(request.POST, instance=quiz, teacher=request.user)
+        if form.is_valid():
+            form.save()
+            messages.success(request, f"Quiz '{quiz.title}' updated successfully.")
+            return redirect('teacher_quiz_list')
+    else:
+        form = QuizForm(instance=quiz, teacher=request.user)
+
+    context = {'form': form, 'quiz': quiz, 'action': 'Edit'}
+    return render(request, 'assessments/quiz_form.html', context)
+
+
+@login_required
+def teacher_quiz_delete(request, quiz_id):
+    """
+    Confirmation page + DELETE for a quiz.
+    Cascade via DB relationships automatically removes:
+      Questions → Choices → StudentAnswers; QuizAttempts → StudentAnswers
+    """
+    _require_teacher(request.user)
+
+    quiz = get_object_or_404(Quiz.objects.select_related('course'), pk=quiz_id)
+    _require_teacher_owns_quiz(request.user, quiz)
+
+    if request.method == 'POST':
+        title = quiz.title
+        quiz.delete()
+        messages.success(request, f"Quiz '{title}' and all its data have been deleted.")
+        return redirect('teacher_quiz_list')
+
+    context = {'quiz': quiz}
+    return render(request, 'assessments/quiz_confirm_delete.html', context)
+
+
+# ── Question CRUD ──────────────────────────────────────────────────────────────
+
+@login_required
+def teacher_question_list(request, quiz_id):
+    """Lists all questions for a quiz, with a link to manage each question's choices."""
+    _require_teacher(request.user)
+
+    quiz = get_object_or_404(Quiz.objects.select_related('course'), pk=quiz_id)
+    _require_teacher_owns_quiz(request.user, quiz)
+
+    questions = (
+        quiz.questions
+        .prefetch_related('choices')
+        .order_by('order')
+    )
+
+    context = {'quiz': quiz, 'questions': questions}
+    return render(request, 'assessments/question_list.html', context)
+
+
+@login_required
+def teacher_question_create(request, quiz_id):
+    """Teacher adds a new question to a quiz they own."""
+    _require_teacher(request.user)
+
+    quiz = get_object_or_404(Quiz.objects.select_related('course'), pk=quiz_id)
+    _require_teacher_owns_quiz(request.user, quiz)
+
+    if request.method == 'POST':
+        form = QuestionForm(request.POST)
+        if form.is_valid():
+            question      = form.save(commit=False)
+            question.quiz = quiz
+            question.save()
+            messages.success(request, f"Question added. Now add the answer choices.")
+            return redirect('teacher_choice_list', question_id=question.pk)
+    else:
+        # Pre-fill order with the next available number
+        next_order = quiz.questions.count() + 1
+        form = QuestionForm(initial={'order': next_order})
+
+    context = {'form': form, 'quiz': quiz, 'action': 'Add'}
+    return render(request, 'assessments/question_form.html', context)
+
+
+@login_required
+def teacher_question_edit(request, question_id):
+    """Teacher edits a question they own."""
+    _require_teacher(request.user)
+
+    question = get_object_or_404(
+        Question.objects.select_related('quiz', 'quiz__course'),
+        pk=question_id,
+    )
+    _require_teacher_owns_question(request.user, question)
+
+    if request.method == 'POST':
+        form = QuestionForm(request.POST, instance=question)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Question updated successfully.")
+            return redirect('teacher_question_list', quiz_id=question.quiz.pk)
+    else:
+        form = QuestionForm(instance=question)
+
+    context = {'form': form, 'question': question, 'quiz': question.quiz, 'action': 'Edit'}
+    return render(request, 'assessments/question_form.html', context)
+
+
+@login_required
+def teacher_question_delete(request, question_id):
+    """
+    Confirmation page + DELETE for a question.
+    Cascade removes its Choices and any StudentAnswer rows referencing them.
+    """
+    _require_teacher(request.user)
+
+    question = get_object_or_404(
+        Question.objects.select_related('quiz', 'quiz__course'),
+        pk=question_id,
+    )
+    _require_teacher_owns_question(request.user, question)
+
+    if request.method == 'POST':
+        quiz_id = question.quiz.pk
+        question.delete()
+        messages.success(request, "Question deleted.")
+        return redirect('teacher_question_list', quiz_id=quiz_id)
+
+    context = {'question': question, 'quiz': question.quiz}
+    return render(request, 'assessments/question_confirm_delete.html', context)
+
+
+# ── Choice CRUD ────────────────────────────────────────────────────────────────
+
+@login_required
+def teacher_choice_list(request, question_id):
+    """Lists all choices for a question."""
+    _require_teacher(request.user)
+
+    question = get_object_or_404(
+        Question.objects.select_related('quiz', 'quiz__course')
+                        .prefetch_related('choices'),
+        pk=question_id,
+    )
+    _require_teacher_owns_question(request.user, question)
+
+    context = {'question': question, 'quiz': question.quiz, 'choices': question.choices.all()}
+    return render(request, 'assessments/choice_list.html', context)
+
+
+@login_required
+def teacher_choice_create(request, question_id):
+    """
+    Teacher adds a choice to a question.
+    If is_correct=True, all other choices on this question are set to False
+    automatically so there is always at most one correct answer.
+    """
+    _require_teacher(request.user)
+
+    question = get_object_or_404(
+        Question.objects.select_related('quiz', 'quiz__course'),
+        pk=question_id,
+    )
+    _require_teacher_owns_question(request.user, question)
+
+    if request.method == 'POST':
+        form = ChoiceForm(request.POST)
+        if form.is_valid():
+            choice          = form.save(commit=False)
+            choice.question = question
+            choice.save()
+
+            # Enforce single-correct rule: unmark all other choices if this one is correct
+            if choice.is_correct:
+                question.choices.exclude(pk=choice.pk).update(is_correct=False)
+
+            messages.success(request, f"Choice '{choice.choice_text[:40]}' added.")
+            return redirect('teacher_choice_list', question_id=question.pk)
+    else:
+        form = ChoiceForm()
+
+    context = {'form': form, 'question': question, 'quiz': question.quiz, 'action': 'Add'}
+    return render(request, 'assessments/choice_form.html', context)
+
+
+@login_required
+def teacher_choice_edit(request, choice_id):
+    """
+    Teacher edits a choice.
+    Same single-correct enforcement as create.
+    """
+    _require_teacher(request.user)
+
+    choice = get_object_or_404(
+        Choice.objects.select_related('question', 'question__quiz', 'question__quiz__course'),
+        pk=choice_id,
+    )
+    _require_teacher_owns_choice(request.user, choice)
+    question = choice.question
+
+    if request.method == 'POST':
+        form = ChoiceForm(request.POST, instance=choice)
+        if form.is_valid():
+            choice = form.save()
+
+            # Enforce single-correct rule
+            if choice.is_correct:
+                question.choices.exclude(pk=choice.pk).update(is_correct=False)
+
+            messages.success(request, "Choice updated successfully.")
+            return redirect('teacher_choice_list', question_id=question.pk)
+    else:
+        form = ChoiceForm(instance=choice)
+
+    context = {
+        'form': form,
+        'choice': choice,
+        'question': question,
+        'quiz': question.quiz,
+        'action': 'Edit',
+    }
+    return render(request, 'assessments/choice_form.html', context)
+
+
+@login_required
+def teacher_choice_delete(request, choice_id):
+    """
+    Confirmation page + DELETE for a choice.
+    Cascade removes any StudentAnswer rows that referenced this choice.
+    """
+    _require_teacher(request.user)
+
+    choice = get_object_or_404(
+        Choice.objects.select_related('question', 'question__quiz', 'question__quiz__course'),
+        pk=choice_id,
+    )
+    _require_teacher_owns_choice(request.user, choice)
+    question = choice.question
+
+    if request.method == 'POST':
+        text = choice.choice_text[:60]
+        choice.delete()
+        messages.success(request, f"Choice '{text}' deleted.")
+        return redirect('teacher_choice_list', question_id=question.pk)
+
+    context = {'choice': choice, 'question': question, 'quiz': question.quiz}
+    return render(request, 'assessments/choice_confirm_delete.html', context)

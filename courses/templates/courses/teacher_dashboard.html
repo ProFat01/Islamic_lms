@@ -21,6 +21,8 @@
       <li><a href="{% url 'teacher_dashboard' %}" class="active"><span class="nav-icon">🏠</span> Dashboard</a></li>
       <li><a href="{% url 'course_create' %}"><span class="nav-icon">➕</span> New Course</a></li>
       <li><a href="{% url 'course_list' %}"><span class="nav-icon">📚</span> View Courses</a></li>
+      <li><a href="{% url 'teacher_quiz_list' %}"><span class="nav-icon">📝</span> My Quizzes</a></li>
+      <li><a href="{% url 'teacher_attempts' %}"><span class="nav-icon">📊</span> Quiz Attempts</a></li>
       <li><a href="{% url 'profile' %}"><span class="nav-icon">👤</span> My Profile</a></li>
       <li><a href="{% url 'logout' %}"><span class="nav-icon">🚪</span> Sign Out</a></li>
     </ul>
@@ -131,6 +133,65 @@
         <h3>No courses yet</h3>
         <p>Create your first Islamic course and start teaching.</p>
         <a href="{% url 'course_create' %}" class="btn btn-primary mt-3" style="margin-top:16px;">Create Course</a>
+      </div>
+    {% endif %}
+
+    <!-- ── Phase 3B: Recent Quiz Attempts ── -->
+    <div class="action-bar" style="margin-top:36px;">
+      <h3>Recent Quiz Attempts</h3>
+      <a href="{% url 'teacher_attempts' %}" class="btn btn-outline btn-sm">
+        View All Attempts →
+      </a>
+    </div>
+
+    {% if recent_attempts %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Student</th>
+              <th>Quiz</th>
+              <th>Score</th>
+              <th>Percentage</th>
+              <th>Status</th>
+              <th>Date</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for attempt in recent_attempts %}
+              <tr>
+                <td>
+                  <div style="font-weight:600;font-size:.88rem;color:var(--text);">
+                    {{ attempt.student.get_full_name|default:attempt.student.username }}
+                  </div>
+                  <div style="font-size:.75rem;color:var(--text-3);">@{{ attempt.student.username }}</div>
+                </td>
+                <td style="font-size:.88rem;">{{ attempt.quiz.title }}</td>
+                <td><strong>{{ attempt.score }}</strong> / {{ attempt.total_questions }}</td>
+                <td>{{ attempt.percentage }}%</td>
+                <td>
+                  {% if attempt.passed %}
+                    <span class="badge badge-green">✓ Passed</span>
+                  {% else %}
+                    <span class="badge badge-red">✗ Failed</span>
+                  {% endif %}
+                </td>
+                <td style="font-size:.8rem;color:var(--text-3);">{{ attempt.created_at|date:"M d, Y" }}</td>
+                <td>
+                  <a href="{% url 'attempt_detail' attempt.pk %}" class="btn btn-sm btn-outline">Review</a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state"
+           style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:32px;">
+        <div class="icon" style="font-size:2rem;margin-bottom:8px;">📊</div>
+        <h4>No quiz attempts yet</h4>
+        <p style="font-size:.9rem;">When students complete quizzes in your courses, results will appear here.</p>
       </div>
     {% endif %}
 

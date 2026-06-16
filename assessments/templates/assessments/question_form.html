@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+{% block title %}{{ action }} Question — {{ quiz.title }}{% endblock %}
+
+{% block content %}
+<div class="dashboard-layout">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sidebar-user">
+      <div class="sidebar-avatar">
+        {% if user.profile_picture %}
+          <img src="{{ user.profile_picture.url }}" alt="{{ user.get_full_name }}">
+        {% else %}
+          {{ user.first_name|first|upper }}{{ user.last_name|first|upper }}
+        {% endif %}
+      </div>
+      <div class="sidebar-name">{{ user.get_full_name|default:user.username }}</div>
+      <div class="sidebar-role">{{ user.get_role_display }}</div>
+    </div>
+    <ul class="sidebar-nav">
+      <li><a href="{% url 'teacher_dashboard' %}"><span class="nav-icon">🏠</span> Dashboard</a></li>
+      <li><a href="{% url 'teacher_quiz_list' %}" class="active"><span class="nav-icon">📝</span> My Quizzes</a></li>
+      <li><a href="{% url 'teacher_attempts' %}"><span class="nav-icon">📊</span> Quiz Attempts</a></li>
+      <li><a href="{% url 'profile' %}"><span class="nav-icon">👤</span> My Profile</a></li>
+      <li><a href="{% url 'logout' %}"><span class="nav-icon">🚪</span> Sign Out</a></li>
+    </ul>
+  </aside>
+
+  <!-- ── Main ── -->
+  <div class="dashboard-main">
+
+    <!-- Breadcrumb -->
+    <div class="breadcrumb" style="margin-bottom:20px;">
+      <a href="{% url 'teacher_quiz_list' %}">My Quizzes</a>
+      <span class="sep">›</span>
+      <a href="{% url 'teacher_question_list' quiz.pk %}">{{ quiz.title }}</a>
+      <span class="sep">›</span>
+      <span>{{ action }} Question</span>
+    </div>
+
+    <div class="card" style="max-width:680px;">
+      <div class="card-body">
+
+        <!-- Header -->
+        <div style="margin-bottom:20px;">
+          <div class="flex gap-1" style="margin-bottom:8px;">
+            <span class="badge badge-gold">📝 {{ quiz.title }}</span>
+            <span class="badge badge-gray">{{ quiz.course.title }}</span>
+          </div>
+          <h2 style="font-size:1.5rem;">{{ action }} Question</h2>
+          {% if action == 'Add' %}
+            <p style="color:var(--text-3);margin-top:4px;">
+              After saving you will be taken to add answer choices.
+            </p>
+          {% endif %}
+        </div>
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          <!-- Question text -->
+          <div class="form-group">
+            <label class="form-label" for="{{ form.question_text.id_for_label }}">
+              Question Text <span style="color:var(--danger);">*</span>
+            </label>
+            {{ form.question_text }}
+            <p class="form-hint">Write the full question exactly as it will appear to students.</p>
+            {% if form.question_text.errors %}
+              {% for error in form.question_text.errors %}
+                <p class="form-error">{{ error }}</p>
+              {% endfor %}
+            {% endif %}
+          </div>
+
+          <!-- Order -->
+          <div class="form-group" style="max-width:200px;">
+            <label class="form-label" for="{{ form.order.id_for_label }}">
+              Display Order <span style="color:var(--danger);">*</span>
+            </label>
+            {{ form.order }}
+            <p class="form-hint">{{ form.order.help_text }}</p>
+            {% if form.order.errors %}
+              {% for error in form.order.errors %}
+                <p class="form-error">{{ error }}</p>
+              {% endfor %}
+            {% endif %}
+          </div>
+
+          <!-- Actions -->
+          <div class="flex gap-2" style="margin-top:8px;">
+            <button type="submit" class="btn btn-primary">
+              {% if action == 'Add' %}Save & Add Choices →{% else %}Save Changes{% endif %}
+            </button>
+            <a href="{% url 'teacher_question_list' quiz.pk %}" class="btn btn-ghost">Cancel</a>
+          </div>
+
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

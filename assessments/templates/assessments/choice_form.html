@@ -1,0 +1,114 @@
+{% extends 'base.html' %}
+{% block title %}{{ action }} Choice — Q{{ question.order }}{% endblock %}
+
+{% block content %}
+<div class="dashboard-layout">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sidebar-user">
+      <div class="sidebar-avatar">
+        {% if user.profile_picture %}
+          <img src="{{ user.profile_picture.url }}" alt="{{ user.get_full_name }}">
+        {% else %}
+          {{ user.first_name|first|upper }}{{ user.last_name|first|upper }}
+        {% endif %}
+      </div>
+      <div class="sidebar-name">{{ user.get_full_name|default:user.username }}</div>
+      <div class="sidebar-role">{{ user.get_role_display }}</div>
+    </div>
+    <ul class="sidebar-nav">
+      <li><a href="{% url 'teacher_dashboard' %}"><span class="nav-icon">🏠</span> Dashboard</a></li>
+      <li><a href="{% url 'teacher_quiz_list' %}" class="active"><span class="nav-icon">📝</span> My Quizzes</a></li>
+      <li><a href="{% url 'teacher_attempts' %}"><span class="nav-icon">📊</span> Quiz Attempts</a></li>
+      <li><a href="{% url 'profile' %}"><span class="nav-icon">👤</span> My Profile</a></li>
+      <li><a href="{% url 'logout' %}"><span class="nav-icon">🚪</span> Sign Out</a></li>
+    </ul>
+  </aside>
+
+  <!-- ── Main ── -->
+  <div class="dashboard-main">
+
+    <!-- Breadcrumb -->
+    <div class="breadcrumb" style="margin-bottom:20px;">
+      <a href="{% url 'teacher_quiz_list' %}">My Quizzes</a>
+      <span class="sep">›</span>
+      <a href="{% url 'teacher_question_list' quiz.pk %}">{{ quiz.title }}</a>
+      <span class="sep">›</span>
+      <a href="{% url 'teacher_choice_list' question.pk %}">Question {{ question.order }}</a>
+      <span class="sep">›</span>
+      <span>{{ action }} Choice</span>
+    </div>
+
+    <div class="card" style="max-width:680px;">
+      <div class="card-body">
+
+        <!-- Header -->
+        <div style="margin-bottom:20px;">
+          <div class="flex gap-1 flex-wrap" style="margin-bottom:10px;">
+            <span class="badge badge-gold">📝 {{ quiz.title }}</span>
+            <span class="badge badge-gray">Q{{ question.order }}</span>
+          </div>
+          <!-- Question context -->
+          <div style="background:var(--surface-2);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:14px;font-size:.9rem;color:var(--text-2);line-height:1.5;">
+            <span style="font-size:.72rem;color:var(--text-3);font-weight:700;text-transform:uppercase;letter-spacing:.05em;display:block;margin-bottom:4px;">Question</span>
+            {{ question.question_text }}
+          </div>
+          <h2 style="font-size:1.4rem;">{{ action }} Answer Choice</h2>
+        </div>
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          <!-- Choice text -->
+          <div class="form-group">
+            <label class="form-label" for="{{ form.choice_text.id_for_label }}">
+              Answer Text <span style="color:var(--danger);">*</span>
+            </label>
+            {{ form.choice_text }}
+            {% if form.choice_text.errors %}
+              {% for error in form.choice_text.errors %}
+                <p class="form-error">{{ error }}</p>
+              {% endfor %}
+            {% endif %}
+          </div>
+
+          <!-- is_correct checkbox -->
+          <div class="form-group">
+            <div style="background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-sm);padding:14px 16px;">
+              <label class="form-check" style="cursor:pointer;gap:12px;">
+                {{ form.is_correct }}
+                <div>
+                  <span style="font-weight:600;color:var(--text);font-size:.95rem;">
+                    {{ form.is_correct.label }}
+                  </span>
+                  <p style="font-size:.82rem;color:var(--text-3);margin-top:3px;">
+                    {{ form.is_correct.help_text }}
+                  </p>
+                </div>
+              </label>
+            </div>
+            {% if form.is_correct.errors %}
+              {% for error in form.is_correct.errors %}
+                <p class="form-error">{{ error }}</p>
+              {% endfor %}
+            {% endif %}
+          </div>
+
+          <!-- Actions -->
+          <div class="flex gap-2" style="margin-top:8px;">
+            <button type="submit" class="btn btn-primary">
+              {% if action == 'Add' %}Add Choice{% else %}Save Changes{% endif %}
+            </button>
+            <a href="{% url 'teacher_choice_list' question.pk %}" class="btn btn-ghost">
+              Cancel
+            </a>
+          </div>
+
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

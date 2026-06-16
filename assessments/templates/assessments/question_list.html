@@ -1,0 +1,156 @@
+{% extends 'base.html' %}
+{% block title %}Questions — {{ quiz.title }}{% endblock %}
+
+{% block content %}
+<div class="dashboard-layout">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sidebar-user">
+      <div class="sidebar-avatar">
+        {% if user.profile_picture %}
+          <img src="{{ user.profile_picture.url }}" alt="{{ user.get_full_name }}">
+        {% else %}
+          {{ user.first_name|first|upper }}{{ user.last_name|first|upper }}
+        {% endif %}
+      </div>
+      <div class="sidebar-name">{{ user.get_full_name|default:user.username }}</div>
+      <div class="sidebar-role">{{ user.get_role_display }}</div>
+    </div>
+    <ul class="sidebar-nav">
+      <li><a href="{% url 'teacher_dashboard' %}"><span class="nav-icon">🏠</span> Dashboard</a></li>
+      <li><a href="{% url 'teacher_quiz_list' %}" class="active"><span class="nav-icon">📝</span> My Quizzes</a></li>
+      <li><a href="{% url 'teacher_attempts' %}"><span class="nav-icon">📊</span> Quiz Attempts</a></li>
+      <li><a href="{% url 'profile' %}"><span class="nav-icon">👤</span> My Profile</a></li>
+      <li><a href="{% url 'logout' %}"><span class="nav-icon">🚪</span> Sign Out</a></li>
+    </ul>
+  </aside>
+
+  <!-- ── Main ── -->
+  <div class="dashboard-main">
+
+    <!-- Breadcrumb -->
+    <div class="breadcrumb" style="margin-bottom:16px;">
+      <a href="{% url 'teacher_quiz_list' %}">My Quizzes</a>
+      <span class="sep">›</span>
+      <a href="{% url 'teacher_quiz_edit' quiz.pk %}">{{ quiz.title }}</a>
+      <span class="sep">›</span>
+      <span>Questions</span>
+    </div>
+
+    <!-- Quiz info bar -->
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px 20px;margin-bottom:24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+      <div style="flex:1;min-width:180px;">
+        <div style="font-size:.75rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;">Quiz</div>
+        <div style="font-weight:700;color:var(--text);">{{ quiz.title }}</div>
+        <div style="font-size:.82rem;color:var(--text-3);">{{ quiz.course.title }}</div>
+      </div>
+      <div class="flex gap-2">
+        <span class="badge badge-gold">Pass: {{ quiz.passing_score }}%</span>
+        <span class="badge badge-teal">{{ questions.count }} question{{ questions.count|pluralize }}</span>
+      </div>
+      <div class="flex gap-2">
+        <a href="{% url 'teacher_quiz_edit' quiz.pk %}" class="btn btn-ghost btn-sm">Edit Quiz</a>
+        <a href="{% url 'quiz_detail' quiz.pk %}" class="btn btn-ghost btn-sm" target="_blank">Preview ↗</a>
+      </div>
+    </div>
+
+    <!-- Action bar -->
+    <div class="action-bar">
+      <h3>Questions ({{ questions.count }})</h3>
+      <a href="{% url 'teacher_question_create' quiz.pk %}" class="btn btn-primary btn-sm">
+        + Add Question
+      </a>
+    </div>
+
+    {% if questions %}
+      <div style="display:flex;flex-direction:column;gap:12px;">
+        {% for question in questions %}
+          <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);overflow:hidden;">
+
+            <!-- Question header -->
+            <div style="display:flex;align-items:flex-start;gap:14px;padding:16px 20px;border-bottom:1px solid var(--border);">
+              <div style="width:32px;height:32px;border-radius:50%;background:var(--primary-l);color:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.85rem;flex-shrink:0;">
+                {{ question.order }}
+              </div>
+              <div style="flex:1;">
+                <div style="font-weight:600;color:var(--text);line-height:1.5;">
+                  {{ question.question_text }}
+                </div>
+                <div style="margin-top:6px;display:flex;gap:8px;flex-wrap:wrap;">
+                  <span class="badge badge-gray">
+                    {{ question.choices.count }} choice{{ question.choices.count|pluralize }}
+                  </span>
+                  {% if question.correct_choice %}
+                    <span class="badge badge-green">✓ Has correct answer</span>
+                  {% else %}
+                    <span class="badge badge-red">⚠ No correct answer set</span>
+                  {% endif %}
+                </div>
+              </div>
+              <div class="flex gap-1" style="flex-shrink:0;">
+                <a href="{% url 'teacher_choice_list' question.pk %}"
+                   class="btn btn-sm btn-primary">
+                  Choices
+                </a>
+                <a href="{% url 'teacher_question_edit' question.pk %}"
+                   class="btn btn-sm btn-outline">
+                  Edit
+                </a>
+                <a href="{% url 'teacher_question_delete' question.pk %}"
+                   class="btn btn-sm btn-danger">
+                  Delete
+                </a>
+              </div>
+            </div>
+
+            <!-- Choices preview -->
+            {% if question.choices.all %}
+              <div style="padding:10px 20px 12px 66px;display:flex;flex-direction:column;gap:6px;">
+                {% for choice in question.choices.all %}
+                  <div style="display:flex;align-items:center;gap:8px;font-size:.87rem;color:var(--text-2);">
+                    {% if choice.is_correct %}
+                      <span style="color:var(--success);font-weight:700;width:16px;">✓</span>
+                      <span style="color:var(--success);font-weight:600;">{{ choice.choice_text }}</span>
+                    {% else %}
+                      <span style="color:var(--text-3);width:16px;">○</span>
+                      <span>{{ choice.choice_text }}</span>
+                    {% endif %}
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div style="padding:10px 20px 12px 66px;font-size:.85rem;color:var(--text-3);">
+                No choices yet —
+                <a href="{% url 'teacher_choice_list' question.pk %}" style="color:var(--primary);">
+                  add choices
+                </a>
+              </div>
+            {% endif %}
+
+          </div>
+        {% endfor %}
+      </div>
+
+      <div style="margin-top:20px;">
+        <a href="{% url 'teacher_question_create' quiz.pk %}" class="btn btn-outline">
+          + Add Another Question
+        </a>
+      </div>
+
+    {% else %}
+      <div class="empty-state"
+           style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);">
+        <div class="icon">❓</div>
+        <h3>No questions yet</h3>
+        <p>Add your first question to this quiz.</p>
+        <a href="{% url 'teacher_question_create' quiz.pk %}" class="btn btn-primary"
+           style="margin-top:16px;">
+          Add Question
+        </a>
+      </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

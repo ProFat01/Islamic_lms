@@ -1,11 +1,62 @@
 {% extends 'base.html' %}
 {% block title %}{{ lesson.title }} — {{ course.title }}{% endblock %}
 
+{% block extra_head %}
+<style>
+  .lesson-complete-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    border-radius: var(--radius-sm);
+    font-family: var(--font-body);
+    font-size: .92rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1.5px solid;
+    transition: all var(--transition);
+  }
+  .lesson-complete-btn.incomplete {
+    background: transparent;
+    border-color: var(--primary);
+    color: var(--primary);
+  }
+  .lesson-complete-btn.incomplete:hover {
+    background: var(--primary);
+    color: #fff;
+  }
+  .lesson-complete-btn.completed {
+    background: var(--success);
+    border-color: var(--success);
+    color: #fff;
+  }
+  .lesson-complete-btn.completed:hover {
+    background: #219a52;
+    border-color: #219a52;
+  }
+  .lesson-nav-check {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: .65rem;
+    font-weight: 700;
+  }
+  .lesson-nav-check.done   { background: var(--success); color: #fff; }
+  .lesson-nav-check.undone { background: var(--surface-2); color: var(--text-3); border: 1.5px solid var(--border); }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="lesson-layout">
 
-  <!-- Main Content -->
+  <!-- ── Main content ── -->
   <div class="lesson-content">
+
+    <!-- Breadcrumb -->
     <div class="breadcrumb">
       <a href="{% url 'course_list' %}">Courses</a>
       <span class="sep">›</span>
@@ -14,12 +65,31 @@
       <span>{{ lesson.title }}</span>
     </div>
 
-    <h1 style="font-size:1.7rem;margin-bottom:20px;">{{ lesson.title }}</h1>
+    <!-- Lesson header -->
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:16px;margin-bottom:20px;">
+      <h1 style="font-size:1.7rem;">{{ lesson.title }}</h1>
+
+      <!-- Mark Complete button (students only) -->
+      {% if request.user.is_student %}
+        <form method="post" action="{% url 'lesson_complete' lesson.pk %}" style="flex-shrink:0;">
+          {% csrf_token %}
+          {% if is_completed %}
+            <button type="submit" class="lesson-complete-btn completed">
+              ✓ Completed
+            </button>
+          {% else %}
+            <button type="submit" class="lesson-complete-btn incomplete">
+              ○ Mark Complete
+            </button>
+          {% endif %}
+        </form>
+      {% endif %}
+    </div>
 
     <!-- Video Player -->
     {% if lesson.video_url %}
       <div class="video-embed" id="video-container" style="display:none;">
-        <!-- Filled by JS -->
+        <!-- Filled by main.js via getEmbedUrl() -->
       </div>
       <input type="hidden" id="video-raw-url" value="{{ lesson.video_url }}">
     {% endif %}
@@ -38,35 +108,88 @@
       </div>
     {% endif %}
 
-    <!-- Navigation Buttons -->
-    <div class="flex justify-between mt-4" style="margin-top:32px;padding-top:20px;border-top:1px solid var(--border);">
-      {% with lessons=all_lessons %}
-        {% for l in lessons %}
-          {% if l.id == lesson.id %}
-            {% if not forloop.first %}
-              {% with prev_index=forloop.counter0|add:"-1" %}
-                <!-- Django template limitation: use sidebar for prev/next -->
-              {% endwith %}
-            {% endif %}
-          {% endif %}
-        {% endfor %}
-      {% endwith %}
-      <a href="{% url 'course_detail' course.slug %}" class="btn btn-ghost">← Back to Course</a>
-      {% if user.is_teacher and user == course.teacher %}
-        <a href="{% url 'course_manage' course.slug %}" class="btn btn-outline btn-sm">Manage Course</a>
+    <!-- Prev / Next navigation + completion CTA -->
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-top:32px;padding-top:20px;border-top:1px solid var(--border);">
+
+      <!-- Previous lesson -->
+      {% if prev_lesson %}
+        <a href="{% url 'lesson_view' course.slug prev_lesson.id %}" class="btn btn-ghost">
+          ← {{ prev_lesson.title|truncatewords:4 }}
+        </a>
+      {% else %}
+        <a href="{% url 'course_detail' course.slug %}" class="btn btn-ghost">
+          ← Back to Course
+        </a>
       {% endif %}
+
+      <!-- Next lesson or course complete CTA -->
+      {% if next_lesson %}
+        {% if request.user.is_student and not is_completed %}
+          <form method="post" action="{% url 'lesson_complete' lesson.pk %}" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-primary">
+              Mark Complete & Continue →
+            </button>
+          </form>
+        {% else %}
+          <a href="{% url 'lesson_view' course.slug next_lesson.id %}" class="btn btn-primary">
+            Next: {{ next_lesson.title|truncatewords:4 }} →
+          </a>
+        {% endif %}
+      {% else %}
+        <!-- Last lesson -->
+        {% if request.user.is_student %}
+          {% if is_completed %}
+            <a href="{% url 'course_detail' course.slug %}" class="btn btn-gold">
+              🎉 Course Complete — Back to Course
+            </a>
+          {% else %}
+            <form method="post" action="{% url 'lesson_complete' lesson.pk %}" style="display:inline;">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-primary">
+                ✓ Mark Complete
+              </button>
+            </form>
+          {% endif %}
+        {% else %}
+          <a href="{% url 'course_detail' course.slug %}" class="btn btn-ghost">
+            ← Back to Course
+          </a>
+        {% endif %}
+      {% endif %}
+
     </div>
+
+    {% if request.user.is_teacher and request.user == course.teacher %}
+      <div style="margin-top:12px;">
+        <a href="{% url 'course_manage' course.slug %}" class="btn btn-outline btn-sm">
+          Manage Course
+        </a>
+      </div>
+    {% endif %}
+
   </div>
 
-  <!-- Lessons Sidebar -->
+  <!-- ── Lessons Sidebar ── -->
   <div class="lesson-sidebar">
     <div class="lesson-sidebar-title">Course Lessons</div>
     {% for l in all_lessons %}
       <a href="{% url 'lesson_view' course.slug l.id %}"
          class="lesson-nav-item {% if l.id == lesson.id %}active{% endif %}">
-        <span style="width:22px;height:22px;border-radius:50%;background:{% if l.id == lesson.id %}var(--primary){% else %}var(--surface-2){% endif %};color:{% if l.id == lesson.id %}#fff{% else %}var(--text-3){% endif %};display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0;">
-          {{ forloop.counter }}
-        </span>
+
+        <!-- Completion indicator (students only) -->
+        {% if request.user.is_student %}
+          {% if l.pk in completed_ids %}
+            <div class="lesson-nav-check done">✓</div>
+          {% else %}
+            <div class="lesson-nav-check undone">{{ forloop.counter }}</div>
+          {% endif %}
+        {% else %}
+          <span style="width:22px;height:22px;border-radius:50%;background:{% if l.id == lesson.id %}var(--primary){% else %}var(--surface-2){% endif %};color:{% if l.id == lesson.id %}#fff{% else %}var(--text-3){% endif %};display:flex;align-items:center;justify-content:center;font-size:.7rem;font-weight:700;flex-shrink:0;">
+            {{ forloop.counter }}
+          </span>
+        {% endif %}
+
         <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">{{ l.title }}</span>
         {% if l.video_url %}<span style="font-size:.75rem;">🎬</span>{% endif %}
         {% if l.note_content %}<span style="font-size:.75rem;">📝</span>{% endif %}

@@ -157,3 +157,68 @@ class Enrollment(models.Model):
 
     def __str__(self):
         return f"{self.student.username} → {self.course.title}"
+
+# Phase 3D — Lesson Progress Tracking
+# ─────────────────────────────────────────────────────────────────────────────
+class LessonProgress(models.Model):
+    """
+    Tracks whether a specific student has completed a specific lesson.
+
+    Relationship map
+    ----------------
+    accounts.User (student) ──< LessonProgress >── Lesson >── Course
+
+    Design decisions
+    ----------------
+    - unique_together on (student, lesson) enforces one row per student per
+      lesson at the database level.  get_or_create is used in the toggle view
+      so there is never a race condition creating duplicates.
+
+    - on_delete=CASCADE on both FKs means:
+        • Deleting a student removes all their progress records.
+        • Deleting a lesson removes progress records for that lesson.
+      No orphaned rows are ever left behind.
+
+    - completed_at is nullable.  It is None while completed=False and
+      set to timezone.now() when the student marks the lesson complete.
+      This allows future phases to display "completed on" dates.
+
+    - 'completed' is a BooleanField rather than a DateTimeField so the
+      toggle logic is a simple True/False flip, and the model stays
+      consistent with the spec.
+    """
+
+    student = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='lesson_progress',
+        help_text="The student this progress record belongs to.",
+    )
+    lesson = models.ForeignKey(
+        'Lesson',
+        on_delete=models.CASCADE,
+        related_name='progress_records',
+        help_text="The lesson this progress record tracks.",
+    )
+    completed = models.BooleanField(
+        default=False,
+        help_text="True when the student has marked this lesson as complete.",
+    )
+    completed_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp when the student last marked this lesson complete. Null if incomplete.",
+    )
+
+    class Meta:
+        unique_together = ('student', 'lesson')
+        ordering = ['lesson__order', 'lesson__created_at']
+        verbose_name = 'Lesson Progress'
+        verbose_name_plural = 'Lesson Progress Records'
+
+    def __str__(self):
+        status = '✓' if self.completed else '○'
+        return (
+            f"{status} {self.student.username} — "
+            f"{self.lesson.course.title} / {self.lesson.title}"
+        )

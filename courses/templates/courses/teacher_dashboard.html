@@ -86,7 +86,8 @@
                 <td>
                   <div style="display:flex;align-items:center;gap:10px;">
                     {% if course.thumbnail %}
-                      <img src="{{ course.thumbnail.url }}" alt="" style="width:40px;height:28px;object-fit:cover;border-radius:4px;">
+                      <img src="{{ course.thumbnail.url }}" alt=""
+                           style="width:40px;height:28px;object-fit:cover;border-radius:4px;">
                     {% else %}
                       <div style="width:40px;height:28px;background:var(--primary-l);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:.9rem;">📖</div>
                     {% endif %}
@@ -103,9 +104,7 @@
                     <span style="color:var(--text-3);font-size:.82rem;">—</span>
                   {% endif %}
                 </td>
-                <td>
-                  <span class="badge badge-teal">{{ course.get_level_display }}</span>
-                </td>
+                <td><span class="badge badge-teal">{{ course.get_level_display }}</span></td>
                 <td>{{ course.lesson_count }}</td>
                 <td>{{ course.enrollment_count }}</td>
                 <td>
@@ -128,20 +127,63 @@
         </table>
       </div>
     {% else %}
-      <div class="empty-state" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);">
+      <div class="empty-state"
+           style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);">
         <div class="icon">✏️</div>
         <h3>No courses yet</h3>
         <p>Create your first Islamic course and start teaching.</p>
-        <a href="{% url 'course_create' %}" class="btn btn-primary mt-3" style="margin-top:16px;">Create Course</a>
+        <a href="{% url 'course_create' %}" class="btn btn-primary" style="margin-top:16px;">Create Course</a>
       </div>
     {% endif %}
 
-    <!-- ── Phase 3B: Recent Quiz Attempts ── -->
+    <!-- ── Phase 3D: Course Completion Analytics ── -->
+    {% if course_analytics %}
+      <div class="action-bar" style="margin-top:36px;">
+        <h3>Course Completion Analytics</h3>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Course</th>
+              <th>Enrolled</th>
+              <th>Completed</th>
+              <th>Completion Rate</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in course_analytics %}
+              <tr>
+                <td>
+                  <div style="font-weight:600;font-size:.9rem;color:var(--text);">{{ row.course.title }}</div>
+                </td>
+                <td>
+                  <span class="badge badge-gray">👥 {{ row.enrolled_count }}</span>
+                </td>
+                <td>
+                  <span class="badge badge-green">🎓 {{ row.completed_count }}</span>
+                </td>
+                <td>
+                  <div style="display:flex;align-items:center;gap:10px;">
+                    <div style="width:100px;height:8px;background:var(--surface-2);border-radius:4px;overflow:hidden;flex-shrink:0;">
+                      <div style="height:100%;width:{{ row.completion_rate }}%;background:{% if row.completion_rate == 100 %}var(--success){% elif row.completion_rate >= 50 %}var(--primary){% else %}var(--gold){% endif %};border-radius:4px;"></div>
+                    </div>
+                    <span style="font-weight:700;font-size:.88rem;color:var(--text);">
+                      {{ row.completion_rate }}%
+                    </span>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+
+    <!-- ── Recent Quiz Attempts (Phase 3B, unchanged) ── -->
     <div class="action-bar" style="margin-top:36px;">
       <h3>Recent Quiz Attempts</h3>
-      <a href="{% url 'teacher_attempts' %}" class="btn btn-outline btn-sm">
-        View All Attempts →
-      </a>
+      <a href="{% url 'teacher_attempts' %}" class="btn btn-outline btn-sm">View All →</a>
     </div>
 
     {% if recent_attempts %}
@@ -191,7 +233,7 @@
            style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:32px;">
         <div class="icon" style="font-size:2rem;margin-bottom:8px;">📊</div>
         <h4>No quiz attempts yet</h4>
-        <p style="font-size:.9rem;">When students complete quizzes in your courses, results will appear here.</p>
+        <p style="font-size:.9rem;">When students complete quizzes, results will appear here.</p>
       </div>
     {% endif %}
 

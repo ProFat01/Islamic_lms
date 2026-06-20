@@ -5,6 +5,11 @@ urlpatterns = [
     # ── Public ───────────────────────────────────────────────────────────
     path('', views.course_list, name='course_list'),
 
+    # ── Phase 3D: Lesson completion toggle ───────────────────────────────
+    # POST only (enforced in the view).
+    # Placed before the bare <slug:slug>/ patterns cannot match "lessons/..."
+    # because it lives under course_slug/lessons/, which already works.
+    path('lessons/<int:lesson_id>/complete/', views.lesson_complete, name='lesson_complete'),
 
     # ── Student ───────────────────────────────────────────────────────────
     path('dashboard/student/', views.student_dashboard, name='student_dashboard'),

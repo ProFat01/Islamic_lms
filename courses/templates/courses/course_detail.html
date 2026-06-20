@@ -3,132 +3,235 @@
 
 {% block content %}
 
-<div class="page-title-bar">
-    <div class="container">
-
-        <div class="breadcrumb">
-            <a href="{% url 'course_list' %}">Courses</a>
-            <span class="sep">›</span>
-
-            {% if course.category %}
-                <a href="{% url 'category_detail' course.category.slug %}">
-                    {{ course.category.name }}
-                </a>
-                <span class="sep">›</span>
-            {% endif %}
-
-            <span>{{ course.title }}</span>
-        </div>
-
-        <h1>{{ course.title }}</h1>
-
-        <p>{{ course.short_description }}</p>
-
-        <div class="flex gap-1 mt-2">
-
-            <span class="badge badge-teal">
-                {{ course.get_level_display }}
-            </span>
-
-            {% if course.category %}
-            <span class="badge badge-gold">
-                {{ course.category.name }}
-            </span>
-            {% endif %}
-
-            <span class="badge badge-gray">
-                ⏱ {{ course.duration }}
-            </span>
-
-        </div>
-
+<!-- Course Header -->
+<div class="course-detail-header">
+  <div class="container">
+    <div class="breadcrumb">
+      <a href="{% url 'home' %}">Home</a>
+      <span class="sep">›</span>
+      <a href="{% url 'course_list' %}">Courses</a>
+      <span class="sep">›</span>
+      <span>{{ course.title }}</span>
     </div>
-</div>
 
-<section class="section-sm">
-    <div class="container">
+    <div class="course-detail-layout">
+      <!-- Left: Course Info -->
+      <div>
+        <div class="flex gap-1 mb-2" style="margin-bottom:12px;">
+          <span class="badge badge-teal">
+            <span class="level-indicator level-{{ course.level }}"></span>
+            {{ course.get_level_display }}
+          </span>
+          {% if course.category %}
+            <a href="{% url 'course_list' %}?category={{ course.category.slug }}"
+               class="badge badge-gold" style="text-decoration:none;">
+              {{ course.category.name }}
+            </a>
+          {% endif %}
+          {% if is_enrolled %}
+            <span class="badge badge-green">✅ Enrolled</span>
+          {% endif %}
+          <!-- Phase 3D: completion badge -->
+          {% if progress and progress.is_complete %}
+            <span class="badge badge-green" style="background:#155724;color:#fff;">
+              🎓 Course Completed
+            </span>
+          {% endif %}
+        </div>
 
-        {% if course.thumbnail %}
-            <img src="{{ course.thumbnail.url }}"
-                 alt="{{ course.title }}"
-                 style="width:100%;max-height:350px;object-fit:cover;border-radius:12px;margin-bottom:24px;">
+        <h1 style="font-size:clamp(1.5rem,3vw,2.5rem);margin-bottom:16px;">{{ course.title }}</h1>
+        <p style="font-size:1.05rem;line-height:1.7;color:var(--text-2);margin-bottom:24px;">
+          {{ course.short_description }}
+        </p>
+
+        <!-- Teacher -->
+        <div class="teacher-card" style="margin-bottom:24px;">
+          <div class="teacher-avatar">
+            {% if course.teacher.profile_picture %}
+              <img src="{{ course.teacher.profile_picture.url }}" alt="{{ course.teacher.get_full_name }}">
+            {% else %}
+              {{ course.teacher.first_name|first|upper }}{{ course.teacher.last_name|first|upper }}
+            {% endif %}
+          </div>
+          <div>
+            <p style="font-size:.78rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;">Your Teacher</p>
+            <h4 style="margin-bottom:3px;">{{ course.teacher.get_full_name|default:course.teacher.username }}</h4>
+            {% if course.teacher.bio %}
+              <p style="font-size:.88rem;">{{ course.teacher.bio|truncatewords:20 }}</p>
+            {% endif %}
+          </div>
+        </div>
+
+        <!-- Stats row -->
+        <div class="flex gap-3 flex-wrap" style="margin-bottom:28px;">
+          <div>
+            <div style="font-size:.78rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;">Duration</div>
+            <div style="font-weight:600;color:var(--text);">⏱ {{ course.duration }}</div>
+          </div>
+          <div>
+            <div style="font-size:.78rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;">Lessons</div>
+            <div style="font-weight:600;color:var(--text);">📚 {{ course.lesson_count }}</div>
+          </div>
+          <div>
+            <div style="font-size:.78rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;">Students</div>
+            <div style="font-weight:600;color:var(--text);">👥 {{ course.enrollment_count }}</div>
+          </div>
+          <div>
+            <div style="font-size:.78rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;">Level</div>
+            <div style="font-weight:600;color:var(--text);">{{ course.get_level_display }}</div>
+          </div>
+          {% if course.category %}
+            <div>
+              <div style="font-size:.78rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;">Category</div>
+              <div style="font-weight:600;">
+                <a href="{% url 'course_list' %}?category={{ course.category.slug }}"
+                   style="color:var(--gold);text-decoration:none;">
+                  🏷 {{ course.category.name }}
+                </a>
+              </div>
+            </div>
+          {% endif %}
+        </div>
+
+        <!-- Phase 3D: Progress widget (enrolled students only) -->
+        {% if is_enrolled and progress %}
+          <div style="background:var(--surface);border:1.5px solid {% if progress.is_complete %}#b1dfbb{% else %}var(--border){% endif %};border-radius:var(--radius);padding:20px;margin-bottom:28px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+              <div>
+                <span style="font-weight:700;font-size:.95rem;color:var(--text);">Your Progress</span>
+                <span style="font-size:.85rem;color:var(--text-3);margin-left:10px;">
+                  {{ progress.completed_lessons }} of {{ progress.total_lessons }} lessons completed
+                </span>
+              </div>
+              <span style="font-size:1.2rem;font-weight:700;color:{% if progress.is_complete %}var(--success){% elif progress.percentage >= 50 %}var(--primary){% else %}var(--text-3){% endif %};">
+                {{ progress.percentage }}%
+              </span>
+            </div>
+
+            <!-- Progress bar -->
+            <div style="height:10px;background:var(--surface-2);border-radius:5px;overflow:hidden;margin-bottom:10px;">
+              <div style="height:100%;width:{{ progress.percentage }}%;background:{% if progress.is_complete %}var(--success){% else %}var(--primary){% endif %};border-radius:5px;transition:width .6s ease;"></div>
+            </div>
+
+            <!-- Milestone labels -->
+            <div style="display:flex;justify-content:space-between;font-size:.72rem;color:var(--text-3);">
+              <span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span>
+            </div>
+
+            {% if progress.is_complete %}
+              <div style="margin-top:14px;padding:10px 14px;background:#d4edda;border-radius:var(--radius-sm);text-align:center;font-weight:700;color:#155724;font-size:.95rem;">
+                🎓 You have completed this course! Congratulations.
+              </div>
+            {% elif progress.first_incomplete and lessons %}
+              <div style="margin-top:14px;">
+                <a href="{% url 'lesson_view' course.slug progress.first_incomplete.id %}"
+                   class="btn btn-primary btn-sm">
+                  Continue Learning →
+                </a>
+              </div>
+            {% endif %}
+          </div>
         {% endif %}
 
-        <div class="card">
-            <div class="card-body">
+        <!-- Full Description -->
+        <h3 style="margin-bottom:12px;">About This Course</h3>
+        <div style="color:var(--text-2);line-height:1.85;white-space:pre-wrap;">{{ course.full_description }}</div>
+      </div>
 
-                <h2>Course Overview</h2>
+      <!-- Right: Sticky Sidebar -->
+      <div>
+        <div class="course-sidebar-card">
+          {% if course.thumbnail %}
+            <img src="{{ course.thumbnail.url }}" alt="{{ course.title }}" class="course-sidebar-thumb">
+          {% else %}
+            <div style="width:100%;aspect-ratio:16/9;background:linear-gradient(135deg,var(--primary-l),var(--primary));display:flex;align-items:center;justify-content:center;font-size:3rem;opacity:.6;">📖</div>
+          {% endif %}
 
-                <p>
-                    {{ course.full_description|linebreaks }}
-                </p>
+          <div class="course-sidebar-body">
 
-                <div style="margin-top:24px;">
-
-                    <h3>
-                        Lessons ({{ lessons.count }})
-                    </h3>
-
-                    {% if lessons %}
-
-                        <ul>
-
-                        {% for lesson in lessons %}
-                            <li style="margin-bottom:10px;">
-
-                                {% if is_enrolled or user == course.teacher %}
-                                    <a href="{% url 'lesson_view' course.slug lesson.id %}">
-                                        {{ lesson.order }}. {{ lesson.title }}
-                                    </a>
-                                {% else %}
-                                    {{ lesson.order }}. {{ lesson.title }}
-                                {% endif %}
-
-                            </li>
-                        {% endfor %}
-
-                        </ul>
-
-                    {% else %}
-
-                        <p>No lessons added yet.</p>
-
-                    {% endif %}
-
+            <!-- Phase 3D: compact progress in sidebar for enrolled students -->
+            {% if is_enrolled and progress %}
+              <div style="margin-bottom:14px;">
+                <div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:5px;">
+                  <span style="color:var(--text-3);">Progress</span>
+                  <span style="font-weight:700;color:{% if progress.is_complete %}var(--success){% else %}var(--primary){% endif %};">
+                    {{ progress.percentage }}%
+                  </span>
                 </div>
-
-                <div style="margin-top:24px;">
-
-                    {% if user.is_authenticated %}
-
-                        {% if is_enrolled %}
-                            <span class="badge badge-teal">
-                                ✓ Enrolled
-                            </span>
-
-                        {% elif user.is_student %}
-                            <a href="{% url 'enroll' course.slug %}"
-                               class="btn btn-primary">
-                                Enroll Now
-                            </a>
-
-                        {% endif %}
-
-                    {% else %}
-
-                        <a href="{% url 'login' %}"
-                           class="btn btn-primary">
-                            Login to Enroll
-                        </a>
-
-                    {% endif %}
-
+                <div style="height:6px;background:var(--surface-2);border-radius:3px;overflow:hidden;">
+                  <div style="height:100%;width:{{ progress.percentage }}%;background:{% if progress.is_complete %}var(--success){% else %}var(--primary){% endif %};border-radius:3px;"></div>
                 </div>
+                {% if progress.is_complete %}
+                  <p style="font-size:.78rem;color:var(--success);margin-top:5px;font-weight:600;">✓ Course completed</p>
+                {% endif %}
+              </div>
+            {% endif %}
 
-            </div>
+            {% if is_enrolled %}
+              <div class="alert alert-success" style="margin-bottom:14px;cursor:default;">
+                ✅ You're enrolled in this course
+              </div>
+              {% if progress and progress.first_incomplete %}
+                <a href="{% url 'lesson_view' course.slug progress.first_incomplete.id %}"
+                   class="btn btn-primary" style="width:100%;justify-content:center;margin-bottom:12px;">
+                  Continue Learning →
+                </a>
+              {% elif lessons %}
+                <a href="{% url 'lesson_view' course.slug lessons.first.id %}"
+                   class="btn btn-outline" style="width:100%;justify-content:center;margin-bottom:12px;">
+                  Start from Beginning
+                </a>
+              {% endif %}
+            {% elif user.is_authenticated and user.is_student %}
+              <form method="post" action="{% url 'enroll' course.slug %}">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-gold"
+                        style="width:100%;justify-content:center;font-size:1rem;padding:13px;">
+                  Enroll Now — Free
+                </button>
+              </form>
+            {% elif not user.is_authenticated %}
+              <a href="{% url 'login' %}" class="btn btn-primary"
+                 style="width:100%;justify-content:center;margin-bottom:8px;">
+                Sign In to Enroll
+              </a>
+              <a href="{% url 'register' %}" class="btn btn-outline btn-sm"
+                 style="width:100%;justify-content:center;">
+                Create Free Account
+              </a>
+            {% endif %}
+
+            <div class="divider"></div>
+
+            <h4 style="margin-bottom:12px;">Course Contents</h4>
+            {% if lessons %}
+              <ul class="lesson-list">
+                {% for lesson in lessons %}
+                  <li class="lesson-item">
+                    <span class="lesson-num">{{ forloop.counter }}</span>
+                    {% if is_enrolled %}
+                      <a href="{% url 'lesson_view' course.slug lesson.id %}"
+                         style="color:var(--text-2);flex:1;">
+                        {{ lesson.title }}
+                      </a>
+                    {% else %}
+                      <span style="flex:1;">{{ lesson.title }}</span>
+                    {% endif %}
+                    {% if lesson.video_url %}🎬{% endif %}
+                    {% if lesson.note_content %}📝{% endif %}
+                  </li>
+                {% endfor %}
+              </ul>
+            {% else %}
+              <p style="color:var(--text-3);font-size:.9rem;text-align:center;padding:16px 0;">
+                Lessons coming soon
+              </p>
+            {% endif %}
+          </div>
         </div>
-
+      </div>
     </div>
-</section>
+  </div>
+</div>
 
 {% endblock %}

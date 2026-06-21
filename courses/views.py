@@ -1,8 +1,8 @@
 """
 courses/views.py
 
-All existing Phase 1/2/3B/3D views are preserved exactly.
-Phase 3E additions are clearly marked.
+All existing Phase 1/2/3B/3D/3E/4A views are preserved exactly.
+Phase 4B (Reviews & Ratings) additions are clearly marked.
 """
 
 from django.contrib import messages
@@ -16,8 +16,8 @@ from accounts.models import User
 # Phase 3B
 from assessments.models import Quiz, QuizAttempt
 
-from .forms import CourseForm, LessonForm
-from .models import Category, Course, CourseCertificate, Enrollment, Lesson, LessonProgress
+from .forms import CourseForm, LessonForm, ReviewForm
+from .models import Category, Course, CourseCertificate, Enrollment, Lesson, LessonProgress, Review
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -209,6 +209,35 @@ def _check_and_issue_certificate(student, course):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Phase 4B — Review eligibility helper
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _is_eligible_to_review(student, course):
+    """
+    A student may review a course only if:
+
+      1. Enrolled in the course
+      AND
+      2. Completed the course (all lessons marked complete)
+
+    Reuses _get_course_progress() (Phase 3D) rather than re-querying
+    LessonProgress directly — single source of truth for "completed".
+
+    Note: unlike certificate eligibility, review eligibility does NOT
+    require passing quizzes — the spec for Phase 4B defines completion
+    purely in terms of "completed the course", matching the same lesson-
+    completion definition used everywhere else in the dashboard and
+    progress-bar UI.
+    """
+    enrolled = Enrollment.objects.filter(student=student, course=course).exists()
+    if not enrolled:
+        return False
+
+    progress = _get_course_progress(student, course)
+    return progress['is_complete'] and progress['total_lessons'] > 0
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 #  PUBLIC PAGES  (unchanged except course_detail, marked below)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -248,6 +277,14 @@ def course_list(request):
         Course.objects
         .filter(is_published=True)
         .select_related('category', 'teacher')
+        # Phase 4B: annotate review count + average rating in the same
+        # query that already fetches the course list — no extra round trips
+        # per course, avoiding N+1 even though each course needs its own
+        # aggregate over a different subset of the reviews table.
+        .annotate(
+            review_count=Count('reviews', distinct=True),
+            avg_rating=Avg('reviews__rating'),
+        )
     )
     if level_filter:
         courses = courses.filter(level=level_filter)
@@ -277,12 +314,32 @@ def course_detail(request, slug):
     Public course detail page.
     Phase 3D: progress bar for enrolled students.
     Phase 3E: certificate eligibility check + certificate CTA.
+    Phase 4B: reviews, average rating, review eligibility + CTA.
     """
-    course      = get_object_or_404(Course, slug=slug, is_published=True)
+    course = get_object_or_404(
+        Course.objects
+        # Phase 4B: annotate rating aggregates directly on this single-object
+        # fetch — same pattern as course_list, avoids a second query.
+        .annotate(
+            review_count=Count('reviews', distinct=True),
+            avg_rating=Avg('reviews__rating'),
+        ),
+        slug=slug,
+        is_published=True,
+    )
     lessons     = course.lessons.all()
     is_enrolled = False
     progress    = None     # Phase 3D
     certificate = None     # Phase 3E
+
+    # Phase 4B: reviews list + this student's own review (if any)
+    reviews = (
+        course.reviews
+        .select_related('student')
+        .order_by('-created_at')
+    )
+    user_review        = None   # the current student's own review, if it exists
+    can_review          = False  # eligible AND hasn't reviewed yet
 
     if request.user.is_authenticated:
         is_enrolled = Enrollment.objects.filter(
@@ -299,12 +356,24 @@ def course_detail(request, slug):
             if progress['is_complete']:
                 certificate = _check_and_issue_certificate(request.user, course)
 
+            # Phase 4B: has this student already reviewed this course?
+            user_review = Review.objects.filter(
+                student=request.user, course=course
+            ).first()
+
+            if user_review is None:
+                can_review = _is_eligible_to_review(request.user, course)
+
     context = {
         'course':       course,
         'lessons':      lessons,
         'is_enrolled':  is_enrolled,
         'progress':     progress,      # Phase 3D
         'certificate':  certificate,   # Phase 3E
+        # Phase 4B
+        'reviews':      reviews,
+        'user_review':  user_review,
+        'can_review':   can_review,
     }
     return render(request, 'courses/course_detail.html', context)
 
@@ -456,6 +525,128 @@ def lesson_complete(request, lesson_id):
 #  STUDENT DASHBOARD  (Phase 3D progress; Phase 3E adds certificate count)
 # ─────────────────────────────────────────────────────────────────────────────
 
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 4A — Recent Activity helper
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _get_recent_activity(student, limit=10):
+    """
+    Builds a unified, time-ordered activity feed for the student dashboard
+    by merging four independent event sources:
+
+        1. LessonProgress  (completed=True)  → "Completed lesson"
+        2. QuizAttempt                       → "Passed quiz" / "Failed quiz"
+        3. CourseCertificate                 → "Earned certificate"
+        4. Enrollment                        → "Enrolled in course"
+
+    None of these four models know about each other, so there is no single
+    table to query and sort directly. Instead each source is queried with
+    its own small, indexed lookup (4 queries total, each filtered to this
+    student and capped to `limit` rows so none of them scan more than
+    necessary), normalised into a common dict shape, concatenated, sorted
+    by timestamp in Python, and finally truncated to `limit`.
+
+    Each event dict has:
+        'type'      : str   — one of 'lesson', 'quiz_pass', 'quiz_fail',
+                              'certificate', 'enrollment'
+        'icon'      : str   — emoji for the template
+        'text'      : str   — human-readable description
+        'course'    : Course
+        'url'       : str   — link target for "View" action
+        'timestamp' : datetime — used for sorting and display
+
+    Performance: 4 queries total regardless of how many courses/quizzes/
+    certificates the student has, each using select_related to avoid
+    further N+1 lookups when accessing .course / .quiz.course.
+    """
+    from django.urls import reverse
+
+    events = []
+
+    # ── 1. Completed lessons ──────────────────────────────────────────────
+    completed_lessons = (
+        LessonProgress.objects
+        .filter(student=student, completed=True)
+        .select_related('lesson', 'lesson__course')
+        .order_by('-completed_at')[:limit]
+    )
+    for lp in completed_lessons:
+        events.append({
+            'type':      'lesson',
+            'icon':      '✅',
+            'text':      f"Completed lesson \u201c{lp.lesson.title}\u201d",
+            'course':    lp.lesson.course,
+            'url':       reverse('lesson_view', kwargs={
+                             'course_slug': lp.lesson.course.slug,
+                             'lesson_id': lp.lesson.pk,
+                         }),
+            'timestamp': lp.completed_at,
+        })
+
+    # ── 2. Quiz attempts (pass or fail) ───────────────────────────────────
+    quiz_attempts = (
+        QuizAttempt.objects
+        .filter(student=student)
+        .select_related('quiz', 'quiz__course')
+        .order_by('-created_at')[:limit]
+    )
+    for attempt in quiz_attempts:
+        events.append({
+            'type':      'quiz_pass' if attempt.passed else 'quiz_fail',
+            'icon':      '🏅' if attempt.passed else '📝',
+            'text':      (
+                f"{'Passed' if attempt.passed else 'Failed'} quiz "
+                f"\u201c{attempt.quiz.title}\u201d ({attempt.percentage}%)"
+            ),
+            'course':    attempt.quiz.course,
+            'url':       reverse('attempt_detail', kwargs={'attempt_id': attempt.pk}),
+            'timestamp': attempt.created_at,
+        })
+
+    # ── 3. Certificates earned ────────────────────────────────────────────
+    certificates = (
+        CourseCertificate.objects
+        .filter(student=student)
+        .select_related('course')
+        .order_by('-issued_at')[:limit]
+    )
+    for cert in certificates:
+        events.append({
+            'type':      'certificate',
+            'icon':      '🏆',
+            'text':      f"Earned certificate for \u201c{cert.course.title}\u201d",
+            'course':    cert.course,
+            'url':       reverse('certificate_detail', kwargs={'certificate_id': cert.pk}),
+            'timestamp': cert.issued_at,
+        })
+
+    # ── 4. Course enrollments ─────────────────────────────────────────────
+    enrollments = (
+        Enrollment.objects
+        .filter(student=student)
+        .select_related('course')
+        .order_by('-enrolled_at')[:limit]
+    )
+    for enrollment in enrollments:
+        events.append({
+            'type':      'enrollment',
+            'icon':      '📚',
+            'text':      f"Enrolled in \u201c{enrollment.course.title}\u201d",
+            'course':    enrollment.course,
+            'url':       reverse('course_detail', kwargs={'slug': enrollment.course.slug}),
+            'timestamp': enrollment.enrolled_at,
+        })
+
+    # ── Merge, sort newest-first, truncate ────────────────────────────────
+    # Some timestamps (completed_at) can be None if a LessonProgress row
+    # exists but was never actually marked complete — filtered out here
+    # defensively, though completed=True should always set completed_at.
+    events = [e for e in events if e['timestamp'] is not None]
+    events.sort(key=lambda e: e['timestamp'], reverse=True)
+
+    return events[:limit]
+
+
 @login_required
 def student_dashboard(request):
     """
@@ -548,6 +739,13 @@ def student_dashboard(request):
         else 0
     )
 
+    # Phase 4A: unified recent activity feed (4 queries, merged + sorted)
+    recent_activity = _get_recent_activity(request.user, limit=10)
+
+    # Phase 4A: latest certificate for the Certificate Summary section
+    # (recent_certificates is already ordered -issued_at, so first() is free)
+    latest_certificate = recent_certificates[0] if recent_certificates else None
+
     context = {
         'enrollments':              enrollments,
         'available_quizzes':        available_quizzes,
@@ -558,8 +756,10 @@ def student_dashboard(request):
         # Phase 4A additions
         'total_completed_lessons':  total_completed_lessons,
         'recent_certificates':      recent_certificates,
+        'latest_certificate':       latest_certificate,
         'quiz_attempt_count':       quiz_attempt_count,
         'average_quiz_score':       average_quiz_score,
+        'recent_activity':          recent_activity,
     }
     return render(request, 'courses/student_dashboard.html', context)
 
@@ -764,7 +964,6 @@ def lesson_delete(request, course_slug, lesson_id):
         'lesson': lesson, 'course': course
     })
 
-
 # ─────────────────────────────────────────────────────────────────────────────
 #  CATEGORY VIEWS  (unchanged)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -790,7 +989,6 @@ def category_detail(request, slug):
         'other_categories':  other_categories,
     }
     return render(request, 'courses/category_detail.html', context)
-
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Phase 3E — Certificate Views
@@ -891,3 +1089,174 @@ def certificate_verify(request, certificate_id):
         'is_valid': certificate is not None,
     }
     return render(request, 'courses/certificate_verify.html', context)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 4B — Review Views
+# ─────────────────────────────────────────────────────────────────────────────
+
+@login_required
+def review_create(request, course_id):
+    """
+    Student creates a review for a course.
+
+    Rules enforced:
+      - Must be logged in            (@login_required)
+      - Must be a student            (is_student check)
+      - Must be enrolled             (_is_eligible_to_review)
+      - Must have completed course   (_is_eligible_to_review)
+      - Cannot submit duplicate      (unique_together + explicit check below)
+
+    course and student are NEVER taken from form input — course comes from
+    the URL (and is fetched fresh from the DB), student is always
+    request.user. This makes it impossible for a tampered POST body to
+    attribute a review to a different course or a different student.
+    """
+    course = get_object_or_404(Course, pk=course_id, is_published=True)
+
+    if not request.user.is_student:
+        raise PermissionDenied
+
+    if not _is_eligible_to_review(request.user, course):
+        messages.error(
+            request,
+            "You can only review a course after completing all of its lessons."
+        )
+        return redirect('course_detail', slug=course.slug)
+
+    # Duplicate guard — belt-and-suspenders alongside the DB UniqueConstraint.
+    # Checking here lets us show a friendly message instead of letting an
+    # IntegrityError bubble up as a 500 error.
+    if Review.objects.filter(student=request.user, course=course).exists():
+        messages.info(request, "You have already reviewed this course.")
+        return redirect('course_detail', slug=course.slug)
+
+    if request.method == 'POST':
+        form = ReviewForm(request.POST)
+        if form.is_valid():
+            review          = form.save(commit=False)
+            review.course   = course
+            review.student  = request.user
+            review.save()
+            messages.success(request, "Thank you! Your review has been posted.")
+            return redirect('course_detail', slug=course.slug)
+    else:
+        form = ReviewForm()
+
+    context = {'form': form, 'course': course, 'action': 'Create'}
+    return render(request, 'courses/review_form.html', context)
+
+
+@login_required
+def review_edit(request, review_id):
+    """
+    Student edits their own review.
+
+    Security: only the review's owner may edit it — anyone else gets
+    PermissionDenied, including teachers (teachers have a read-only view
+    via teacher_reviews, not an edit path).
+    """
+    review = get_object_or_404(
+        Review.objects.select_related('course', 'student'),
+        pk=review_id,
+    )
+
+    if review.student != request.user:
+        raise PermissionDenied
+
+    if request.method == 'POST':
+        form = ReviewForm(request.POST, instance=review)
+        if form.is_valid():
+            form.save()
+            messages.success(request, "Your review has been updated.")
+            return redirect('course_detail', slug=review.course.slug)
+    else:
+        form = ReviewForm(instance=review)
+
+    context = {'form': form, 'course': review.course, 'review': review, 'action': 'Edit'}
+    return render(request, 'courses/review_form.html', context)
+
+
+@login_required
+def review_delete(request, review_id):
+    """
+    Student deletes their own review.
+    Confirmation page on GET; actual deletion only on POST.
+
+    Security: only the review's owner may delete it.
+    """
+    review = get_object_or_404(
+        Review.objects.select_related('course', 'student'),
+        pk=review_id,
+    )
+
+    if review.student != request.user:
+        raise PermissionDenied
+
+    if request.method == 'POST':
+        course_slug = review.course.slug
+        review.delete()
+        messages.success(request, "Your review has been deleted.")
+        return redirect('course_detail', slug=course_slug)
+
+    context = {'review': review, 'course': review.course}
+    return render(request, 'courses/review_confirm_delete.html', context)
+
+
+@login_required
+def teacher_reviews(request):
+    """
+    Teacher analytics page — all reviews left on the teacher's own courses.
+
+    Security: filtered by course__teacher=request.user at the query level,
+    so a teacher can never see reviews for another teacher's courses even
+    if they guess a review ID (this view doesn't take an ID at all — it's
+    a list view scoped entirely by the logged-in teacher).
+
+    Performance: one query for the review list (select_related avoids
+    N+1 on .student and .course), one aggregate query for summary stats,
+    one small query for highest-rated course.
+    """
+    if not request.user.is_teacher:
+        if request.user.is_student:
+            return redirect('student_dashboard')
+        raise PermissionDenied
+
+    reviews = (
+        Review.objects
+        .filter(course__teacher=request.user)
+        .select_related('student', 'course')
+        .order_by('-created_at')
+    )
+
+    # Summary cards: total reviews + average rating across ALL of this
+    # teacher's courses, computed in the database in one aggregate query.
+    summary = reviews.aggregate(
+        total_reviews=Count('id'),
+        avg_rating=Avg('rating'),
+    )
+    total_reviews = summary['total_reviews'] or 0
+    avg_rating    = round(summary['avg_rating'], 1) if summary['avg_rating'] is not None else None
+
+    # Highest rated course: annotate each of the teacher's courses with its
+    # average rating and review count, then pick the top one. A course needs
+    # at least one review to be considered (review_count__gt=0) so a brand
+    # new course with no reviews doesn't show up as "highest rated".
+    highest_rated_course = (
+        Course.objects
+        .filter(teacher=request.user)
+        .annotate(
+            review_count=Count('reviews', distinct=True),
+            avg_rating=Avg('reviews__rating'),
+        )
+        .filter(review_count__gt=0)
+        .order_by('-avg_rating')
+        .first()
+    )
+
+    context = {
+        'reviews':              reviews,
+        'total_reviews':        total_reviews,
+        'avg_rating':           avg_rating,
+        'highest_rated_course': highest_rated_course,
+    }
+    return render(request, 'courses/teacher_reviews.html', context)

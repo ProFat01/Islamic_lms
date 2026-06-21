@@ -132,6 +132,21 @@
                 {% endif %}
               </div>
               <h3 class="course-card-title">{{ course.title }}</h3>
+
+              <!-- Phase 4B: average rating -->
+              {% if course.review_count > 0 %}
+                <div style="display:flex;align-items:center;gap:5px;margin:4px 0 8px;">
+                  <span style="color:var(--gold);font-size:.85rem;">
+                    {% for i in "12345" %}
+                      {% if forloop.counter <= course.avg_rating %}★{% else %}☆{% endif %}
+                    {% endfor %}
+                  </span>
+                  <span style="font-size:.78rem;color:var(--text-3);">
+                    {{ course.avg_rating|floatformat:1 }} ({{ course.review_count }})
+                  </span>
+                </div>
+              {% endif %}
+
               <p class="course-card-desc">{{ course.short_description|truncatewords:20 }}</p>
 
               <!-- Teacher info -->

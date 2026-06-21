@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block title %}Delete Review — {{ course.title }}{% endblock %}
+
+{% block content %}
+<div class="section-sm">
+  <div class="container">
+    <div class="confirm-card">
+      <div class="icon">⚠️</div>
+      <h2 style="margin-bottom:10px;">Delete Review</h2>
+
+      <p style="margin-bottom:6px;">You are about to permanently delete your review of:</p>
+      <p style="font-weight:700;font-size:1.05rem;color:var(--text);margin-bottom:14px;">
+        "{{ course.title }}"
+      </p>
+
+      <!-- Review preview -->
+      <div style="background:var(--surface-2);border-radius:var(--radius-sm);padding:14px 16px;margin-bottom:16px;text-align:left;">
+        <div style="color:var(--gold);font-size:1rem;margin-bottom:6px;">
+          {% for i in "12345" %}
+            {% if forloop.counter <= review.rating %}★{% else %}☆{% endif %}
+          {% endfor %}
+          <span style="color:var(--text-3);font-size:.82rem;margin-left:6px;">({{ review.rating }}/5)</span>
+        </div>
+        <p style="color:var(--text-2);font-size:.9rem;font-style:italic;line-height:1.6;">
+          "{{ review.review_text|truncatewords:30 }}"
+        </p>
+      </div>
+
+      <p style="font-size:.85rem;color:var(--danger);margin-bottom:20px;">
+        This action cannot be undone.
+      </p>
+
+      <div class="flex-center gap-2">
+        <form method="post">
+          {% csrf_token %}
+          <button type="submit" class="btn btn-danger">Yes, Delete Review</button>
+        </form>
+        <a href="{% url 'course_detail' course.slug %}" class="btn btn-ghost">Cancel</a>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

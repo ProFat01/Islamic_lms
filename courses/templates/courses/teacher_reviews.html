@@ -1,0 +1,135 @@
+{% extends 'base.html' %}
+{% block title %}Course Reviews{% endblock %}
+
+{% block content %}
+<div class="dashboard-layout">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sidebar-user">
+      <div class="sidebar-avatar">
+        {% if user.profile_picture %}
+          <img src="{{ user.profile_picture.url }}" alt="{{ user.get_full_name }}">
+        {% else %}
+          {{ user.first_name|first|upper }}{{ user.last_name|first|upper }}
+        {% endif %}
+      </div>
+      <div class="sidebar-name">{{ user.get_full_name|default:user.username }}</div>
+      <div class="sidebar-role">{{ user.get_role_display }}</div>
+    </div>
+    <ul class="sidebar-nav">
+      <li><a href="{% url 'teacher_dashboard' %}"><span class="nav-icon">🏠</span> Dashboard</a></li>
+      <li><a href="{% url 'course_create' %}"><span class="nav-icon">➕</span> New Course</a></li>
+      <li><a href="{% url 'course_list' %}"><span class="nav-icon">📚</span> View Courses</a></li>
+      <li><a href="{% url 'teacher_quiz_list' %}"><span class="nav-icon">📝</span> My Quizzes</a></li>
+      <li><a href="{% url 'teacher_attempts' %}"><span class="nav-icon">📊</span> Quiz Attempts</a></li>
+      <li><a href="{% url 'teacher_reviews' %}" class="active"><span class="nav-icon">⭐</span> Course Reviews</a></li>
+      <li><a href="{% url 'profile' %}"><span class="nav-icon">👤</span> My Profile</a></li>
+      <li><a href="{% url 'logout' %}"><span class="nav-icon">🚪</span> Sign Out</a></li>
+    </ul>
+  </aside>
+
+  <!-- ── Main ── -->
+  <div class="dashboard-main">
+
+    <div class="dashboard-header">
+      <h1>Course Reviews</h1>
+      <p>Feedback students have left on your courses.</p>
+    </div>
+
+    <!-- ── Summary cards ── -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-card-icon" style="background:var(--primary-l);color:var(--primary);">💬</div>
+        <div>
+          <div class="stat-card-num">{{ total_reviews }}</div>
+          <div class="stat-card-label">Total Reviews</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-icon" style="background:var(--gold-l);color:var(--gold);">⭐</div>
+        <div>
+          <div class="stat-card-num">
+            {% if avg_rating %}{{ avg_rating }}{% else %}—{% endif %}
+          </div>
+          <div class="stat-card-label">Average Rating</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-icon" style="background:#e8f8ef;color:var(--success);">🏆</div>
+        <div>
+          {% if highest_rated_course %}
+            <div class="stat-card-num" style="font-size:1.05rem;line-height:1.3;">
+              {{ highest_rated_course.title|truncatechars:22 }}
+            </div>
+            <div class="stat-card-label">
+              Highest Rated ({{ highest_rated_course.avg_rating|floatformat:1 }}★)
+            </div>
+          {% else %}
+            <div class="stat-card-num">—</div>
+            <div class="stat-card-label">Highest Rated Course</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Reviews table ── -->
+    <div class="action-bar">
+      <h3>All Reviews</h3>
+    </div>
+
+    {% if reviews %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Course</th>
+              <th>Student</th>
+              <th>Rating</th>
+              <th>Review</th>
+              <th>Date</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for review in reviews %}
+              <tr>
+                <td>
+                  <a href="{% url 'course_detail' review.course.slug %}"
+                     style="font-weight:600;color:var(--primary);font-size:.9rem;">
+                    {{ review.course.title }}
+                  </a>
+                </td>
+                <td style="font-size:.88rem;color:var(--text-2);">
+                  {{ review.student.get_full_name|default:review.student.username }}
+                </td>
+                <td>
+                  <span style="color:var(--gold);white-space:nowrap;">
+                    {% for i in "12345" %}
+                      {% if forloop.counter <= review.rating %}★{% else %}☆{% endif %}
+                    {% endfor %}
+                  </span>
+                  <span style="font-size:.78rem;color:var(--text-3);">({{ review.rating }}/5)</span>
+                </td>
+                <td style="font-size:.86rem;color:var(--text-2);max-width:320px;">
+                  {{ review.review_text|truncatewords:20 }}
+                </td>
+                <td style="font-size:.8rem;color:var(--text-3);white-space:nowrap;">
+                  {{ review.created_at|date:"M d, Y" }}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state"
+           style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);">
+        <div class="icon">⭐</div>
+        <h3>No reviews yet</h3>
+        <p>When students review your courses, their feedback will appear here.</p>
+      </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

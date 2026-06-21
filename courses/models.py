@@ -2,6 +2,7 @@ from django.db import models, transaction
 from django.urls import reverse
 from django.utils.text import slugify
 from django.conf import settings
+from django.core.validators import MaxValueValidator, MinValueValidator
 
 class Category(models.Model):
     """
@@ -166,25 +167,6 @@ class LessonProgress(models.Model):
     Relationship map
     ----------------
     accounts.User (student) ──< LessonProgress >── Lesson >── Course
-
-    Design decisions
-    ----------------
-    - unique_together on (student, lesson) enforces one row per student per
-      lesson at the database level.  get_or_create is used in the toggle view
-      so there is never a race condition creating duplicates.
-
-    - on_delete=CASCADE on both FKs means:
-        • Deleting a student removes all their progress records.
-        • Deleting a lesson removes progress records for that lesson.
-      No orphaned rows are ever left behind.
-
-    - completed_at is nullable.  It is None while completed=False and
-      set to timezone.now() when the student marks the lesson complete.
-      This allows future phases to display "completed on" dates.
-
-    - 'completed' is a BooleanField rather than a DateTimeField so the
-      toggle logic is a simple True/False flip, and the model stays
-      consistent with the spec.
     """
 
     student = models.ForeignKey(
@@ -233,26 +215,6 @@ class CourseCertificate(models.Model):
     ----------------
     accounts.User (student) ──< CourseCertificate >── Course
 
-    Design decisions
-    ----------------
-    - unique_together on (student, course) guarantees at most one certificate
-      per student per course at the database level — this is the canonical
-      "never create duplicates" guarantee the spec requires.
-
-    - on_delete=CASCADE on both FKs: deleting a student or a course removes
-      any certificates tied to them. No orphaned certificate rows.
-
-    - certificate_id is a separate unique, human-readable identifier
-      (e.g. "NAL-2026-000001") distinct from the numeric primary key.
-      It is generated once, at creation time, and never changes — this is
-      the number printed on the certificate and used for public verification,
-      so it must remain stable even if internal database IDs were ever
-      renumbered.
-
-    - Generation uses a transaction.atomic() block with select_for_update()
-      on a per-year counter query to avoid two simultaneous requests
-      generating the same certificate_id (race condition safety on SQLite
-      and Postgres alike).
     """
 
     student = models.ForeignKey(
@@ -326,3 +288,84 @@ class CourseCertificate(models.Model):
                 next_seq = 1
 
             return f"{prefix}{next_seq:06d}"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ADD THIS CLASS to the bottom of courses/models.py
+# Phase 4B — Reviews & Ratings System
+# ─────────────────────────────────────────────────────────────────────────────
+
+class Review(models.Model):
+    """
+    A student's rating + written review of a course.
+
+    Relationship map
+    ----------------
+    accounts.User (student) ──< Review >── Course
+
+    Design decisions
+    ----------------
+    - rating is an IntegerField restricted to 1–5 by both a model-level
+      validator (MinValueValidator/MaxValueValidator, enforced on
+      full_clean()/ModelForm validation) AND a database-level CheckConstraint
+      (enforced even on direct .objects.create() calls or raw SQL, e.g. from
+      a data migration or shell session that skips form validation).
+
+    - UniqueConstraint on (student, course) is the canonical "one review per
+      student per course" guarantee — enforced at the database level so it
+      holds even under concurrent requests, not just in view-layer checks.
+
+    - on_delete=CASCADE on both FKs: deleting a student or a course removes
+      their associated reviews. No orphaned review rows.
+
+    - updated_at uses auto_now (updates on every save), while created_at
+      uses auto_now_add (set once, never changes) — this lets the UI show
+      "edited" timestamps distinct from the original submission date.
+
+    - Meta.ordering = ['-created_at'] satisfies "order reviews by newest
+      first" without every view needing to repeat .order_by().
+    """
+
+    course = models.ForeignKey(
+        'Course',
+        on_delete=models.CASCADE,
+        related_name='reviews',
+        help_text="The course being reviewed.",
+    )
+    student = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='course_reviews',
+        help_text="The student who wrote this review.",
+    )
+    rating = models.IntegerField(
+        validators=[MinValueValidator(1), MaxValueValidator(5)],
+        help_text="Rating from 1 (Poor) to 5 (Excellent).",
+    )
+    review_text = models.TextField(
+        help_text="The student's written feedback about the course.",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+        verbose_name = 'Review'
+        verbose_name_plural = 'Reviews'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['student', 'course'],
+                name='unique_review_per_student_per_course',
+            ),
+            models.CheckConstraint(
+                condition=models.Q(rating__gte=1) & models.Q(rating__lte=5),
+                name='review_rating_between_1_and_5',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.student.username} rated \u201c{self.course.title}\u201d {self.rating}/5"
+
+    @property
+    def star_display(self):
+        """Returns a string like '★★★★☆' for template-free star rendering if needed."""
+        return '★' * self.rating + '☆' * (5 - self.rating)

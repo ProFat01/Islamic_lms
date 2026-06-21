@@ -39,7 +39,31 @@
           {% endif %}
         </div>
 
-        <h1 style="font-size:clamp(1.5rem,3vw,2.5rem);margin-bottom:16px;">{{ course.title }}</h1>
+        <h1 style="font-size:clamp(1.5rem,3vw,2.5rem);margin-bottom:10px;">{{ course.title }}</h1>
+
+        <!-- Phase 4B: Average rating -->
+        {% if course.review_count > 0 %}
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
+            <span style="color:var(--gold);font-size:1.1rem;letter-spacing:1px;">
+              {% with full_stars=course.avg_rating|floatformat:0 %}
+                {% for i in "12345" %}
+                  {% if forloop.counter <= course.avg_rating %}★{% else %}☆{% endif %}
+                {% endfor %}
+              {% endwith %}
+            </span>
+            <span style="font-weight:700;color:var(--text);font-size:.95rem;">
+              {{ course.avg_rating|floatformat:1 }} / 5
+            </span>
+            <span style="color:var(--text-3);font-size:.85rem;">
+              ({{ course.review_count }} review{{ course.review_count|pluralize }})
+            </span>
+          </div>
+        {% else %}
+          <div style="margin-bottom:16px;">
+            <span style="color:var(--text-3);font-size:.85rem;">No reviews yet</span>
+          </div>
+        {% endif %}
+
         <p style="font-size:1.05rem;line-height:1.7;color:var(--text-2);margin-bottom:24px;">
           {{ course.short_description }}
         </p>
@@ -159,7 +183,108 @@
 
         <!-- Full Description -->
         <h3 style="margin-bottom:12px;">About This Course</h3>
-        <div style="color:var(--text-2);line-height:1.85;white-space:pre-wrap;">{{ course.full_description }}</div>
+        <div style="color:var(--text-2);line-height:1.85;white-space:pre-wrap;margin-bottom:32px;">{{ course.full_description }}</div>
+
+        <!-- ── Phase 4B: Reviews Section ── -->
+        <div style="border-top:1px solid var(--border);padding-top:28px;">
+
+          <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+            <h3 style="margin:0;">
+              Student Reviews
+              {% if course.review_count > 0 %}
+                <span style="color:var(--text-3);font-weight:400;font-size:.9rem;">({{ course.review_count }})</span>
+              {% endif %}
+            </h3>
+
+            {% if can_review %}
+              <a href="{% url 'review_create' course.pk %}" class="btn btn-gold btn-sm">
+                ⭐ Write a Review
+              </a>
+            {% endif %}
+          </div>
+
+          <!-- Hint for enrolled-but-not-yet-eligible students -->
+          {% if is_enrolled and user.is_student and not user_review and not can_review %}
+            <div style="background:var(--surface-2);border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:20px;font-size:.85rem;color:var(--text-3);">
+              💡 Complete all lessons in this course to unlock the ability to leave a review.
+            </div>
+          {% endif %}
+
+          <!-- The current student's own review, with edit/delete -->
+          {% if user_review %}
+            <div style="background:var(--primary-l);border:1.5px solid rgba(26,107,94,.2);border-radius:var(--radius);padding:18px 20px;margin-bottom:16px;">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+                <div style="flex:1;min-width:200px;">
+                  <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
+                    <span class="badge badge-teal" style="font-size:.72rem;">Your Review</span>
+                    <span style="color:var(--gold);font-size:.95rem;">
+                      {% for i in "12345" %}
+                        {% if forloop.counter <= user_review.rating %}★{% else %}☆{% endif %}
+                      {% endfor %}
+                    </span>
+                  </div>
+                  <p style="color:var(--text-2);font-size:.92rem;line-height:1.6;margin:0;">
+                    {{ user_review.review_text }}
+                  </p>
+                  <p style="font-size:.78rem;color:var(--text-3);margin-top:8px;">
+                    Posted {{ user_review.created_at|date:"M d, Y" }}
+                    {% if user_review.updated_at != user_review.created_at %}
+                      · edited {{ user_review.updated_at|date:"M d, Y" }}
+                    {% endif %}
+                  </p>
+                </div>
+                <div class="flex gap-1" style="flex-shrink:0;">
+                  <a href="{% url 'review_edit' user_review.pk %}" class="btn btn-sm btn-outline">Edit</a>
+                  <a href="{% url 'review_delete' user_review.pk %}" class="btn btn-sm btn-danger">Delete</a>
+                </div>
+              </div>
+            </div>
+          {% endif %}
+
+          <!-- All other reviews -->
+          {% if reviews %}
+            <div style="display:flex;flex-direction:column;gap:14px;">
+              {% for review in reviews %}
+                {% if review.student_id != user.id %}
+                  <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px 20px;">
+                    <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap;">
+                      <div class="teacher-avatar" style="width:32px;height:32px;font-size:.8rem;flex-shrink:0;">
+                        {% if review.student.profile_picture %}
+                          <img src="{{ review.student.profile_picture.url }}" alt="">
+                        {% else %}
+                          {{ review.student.first_name|first|upper }}{{ review.student.last_name|first|upper }}
+                        {% endif %}
+                      </div>
+                      <div style="flex:1;min-width:120px;">
+                        <div style="font-weight:600;font-size:.9rem;color:var(--text);">
+                          {{ review.student.get_full_name|default:review.student.username }}
+                        </div>
+                        <div style="color:var(--gold);font-size:.85rem;">
+                          {% for i in "12345" %}
+                            {% if forloop.counter <= review.rating %}★{% else %}☆{% endif %}
+                          {% endfor %}
+                        </div>
+                      </div>
+                      <span style="font-size:.78rem;color:var(--text-3);white-space:nowrap;">
+                        {{ review.created_at|date:"M d, Y" }}
+                      </span>
+                    </div>
+                    <p style="color:var(--text-2);font-size:.9rem;line-height:1.6;margin:0;">
+                      {{ review.review_text }}
+                    </p>
+                  </div>
+                {% endif %}
+              {% endfor %}
+            </div>
+          {% elif not user_review %}
+            <div class="empty-state" style="padding:40px 20px;">
+              <div class="icon" style="font-size:2rem;">⭐</div>
+              <h4 style="margin-bottom:4px;">No reviews yet</h4>
+              <p style="font-size:.88rem;">Be the first to share your experience with this course.</p>
+            </div>
+          {% endif %}
+
+        </div>
       </div>
 
       <!-- Right: Sticky Sidebar -->

@@ -3,10 +3,13 @@ courses/urls.py
 
 All existing URLs are preserved exactly.
 Phase 3D added: lessons/<id>/complete/
-Phase 3E adds: certificate list/detail/print URLs (mounted under /courses/)
-               plus the public verification URL is registered separately
-               in the ROOT urls.py as /certificate/verify/<id>/ — see
-               root_urls.py output for that single added line.
+Phase 3E added: certificate list/detail/print URLs (mounted under /courses/)
+Phase 4B adds:  review create/edit/delete + teacher reviews analytics
+
+URL ordering note: review/create/ and teacher/reviews/ are placed before
+the bare <slug:slug>/ pattern (same technique already used for
+certificates/) so Django's URL resolver tries the more specific literal
+prefixes first and never mistakes "review" or "teacher" for a course slug.
 """
 
 from django.urls import path
@@ -17,11 +20,16 @@ urlpatterns = [
     path('', views.course_list, name='course_list'),
     path('category/<slug:slug>/', views.category_detail, name='category_detail'),
 
-    # ── Phase 3E: Certificates (placed before bare <slug:slug>/ to avoid
-    #    "certificates" being interpreted as a course slug) ──────────────
+    # ── Phase 3E: Certificates ────────────────────────────────────────────
     path('certificates/', views.certificate_list, name='certificate_list'),
     path('certificates/<int:certificate_id>/', views.certificate_detail, name='certificate_detail'),
     path('certificates/<int:certificate_id>/print/', views.certificate_print, name='certificate_print'),
+
+    # ── Phase 4B: Reviews ─────────────────────────────────────────────────
+    path('review/<int:course_id>/create/', views.review_create, name='review_create'),
+    path('review/<int:review_id>/edit/', views.review_edit, name='review_edit'),
+    path('review/<int:review_id>/delete/', views.review_delete, name='review_delete'),
+    path('teacher/reviews/', views.teacher_reviews, name='teacher_reviews'),
 
     path('<slug:slug>/', views.course_detail, name='course_detail'),
     path('<slug:slug>/enroll/', views.enroll, name='enroll'),

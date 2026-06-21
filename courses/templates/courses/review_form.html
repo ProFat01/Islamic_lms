@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+{% block title %}{{ action }} Review — {{ course.title }}{% endblock %}
+
+{% block content %}
+<div class="section-sm">
+  <div class="container" style="max-width:640px;">
+
+    <!-- Breadcrumb -->
+    <div class="breadcrumb">
+      <a href="{% url 'course_list' %}">Courses</a>
+      <span class="sep">›</span>
+      <a href="{% url 'course_detail' course.slug %}">{{ course.title }}</a>
+      <span class="sep">›</span>
+      <span>{{ action }} Review</span>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="card-body" style="padding:32px;">
+
+        <div style="text-align:center;margin-bottom:24px;">
+          <div style="font-size:2.2rem;margin-bottom:8px;">⭐</div>
+          <h2 style="margin-bottom:4px;">
+            {% if action == 'Create' %}Review This Course{% else %}Edit Your Review{% endif %}
+          </h2>
+          <p style="color:var(--text-3);font-size:.92rem;">{{ course.title }}</p>
+        </div>
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+
+          <!-- Rating -->
+          <div class="form-group">
+            <label class="form-label" for="{{ form.rating.id_for_label }}">
+              Your Rating <span style="color:var(--danger);">*</span>
+            </label>
+            {{ form.rating }}
+            <p class="form-hint">{{ form.rating.help_text }}</p>
+            {% if form.rating.errors %}
+              {% for error in form.rating.errors %}
+                <p class="form-error">{{ error }}</p>
+              {% endfor %}
+            {% endif %}
+          </div>
+
+          <!-- Review text -->
+          <div class="form-group">
+            <label class="form-label" for="{{ form.review_text.id_for_label }}">
+              {{ form.review_text.label }} <span style="color:var(--danger);">*</span>
+            </label>
+            {{ form.review_text }}
+            {% if form.review_text.errors %}
+              {% for error in form.review_text.errors %}
+                <p class="form-error">{{ error }}</p>
+              {% endfor %}
+            {% endif %}
+          </div>
+
+          {% if form.non_field_errors %}
+            <div class="alert alert-error" style="margin-bottom:16px;cursor:default;">
+              {% for error in form.non_field_errors %}{{ error }}{% endfor %}
+            </div>
+          {% endif %}
+
+          <!-- Actions -->
+          <div class="flex gap-2" style="margin-top:8px;">
+            <button type="submit" class="btn btn-primary">
+              {% if action == 'Create' %}Submit Review{% else %}Save Changes{% endif %}
+            </button>
+            <a href="{% url 'course_detail' course.slug %}" class="btn btn-ghost">Cancel</a>
+          </div>
+
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

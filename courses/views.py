@@ -8,7 +8,7 @@ Phase 3E additions are clearly marked.
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
-from django.db.models import Count, Q
+from django.db.models import Avg, Count, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
@@ -458,7 +458,22 @@ def lesson_complete(request, lesson_id):
 
 @login_required
 def student_dashboard(request):
-    """Student dashboard with progress tracking and certificate count."""
+    """
+    Student dashboard — learning analytics center (Phase 4A).
+
+    Adds on top of existing Phase 3D/3E data:
+      - total_completed_lessons : sum across ALL enrolled courses
+                                   (distinct from per-course completed_lessons
+                                   already available via enrollment.progress)
+      - quiz_attempt_count      : total quiz attempts ever made by this student
+      - average_quiz_score      : average percentage across all attempts,
+                                   rounded to nearest whole number
+      - recent_certificates     : latest 5 CourseCertificate rows
+
+    All existing context keys (enrollments, available_quizzes,
+    recent_attempts, progress_map, completed_courses, certificate_count)
+    are preserved exactly as before.
+    """
     if not request.user.is_student:
         if request.user.is_teacher:
             return redirect('teacher_dashboard')
@@ -477,12 +492,16 @@ def student_dashboard(request):
         .select_related('course')
         .order_by('-created_at')[:10]
     )
-    recent_attempts = (
+
+    # All quiz attempts by this student (used for both the "recent 5" table
+    # and the average score calculation below — built once, reused twice)
+    all_attempts = (
         QuizAttempt.objects
         .filter(student=request.user)
         .select_related('quiz', 'quiz__course')
-        .order_by('-created_at')[:5]
+        .order_by('-created_at')
     )
+    recent_attempts = all_attempts[:5]
 
     enrolled_courses = [e.course for e in enrollments]
     progress_map     = _get_progress_map(request.user, enrolled_courses)
@@ -497,16 +516,50 @@ def student_dashboard(request):
         1 for p in progress_map.values() if p['is_complete']
     )
 
-    # Phase 3E: certificate count for the stats row
+    # Phase 4A: total completed lessons across ALL enrolled courses.
+    # One query — reuses the same LessonProgress table already populated
+    # by the Phase 3D lesson-completion feature.
+    total_completed_lessons = LessonProgress.objects.filter(
+        student=request.user,
+        completed=True,
+    ).count()
+
+    # Phase 3E: certificate count for the stats row (unchanged)
     certificate_count = CourseCertificate.objects.filter(student=request.user).count()
 
+    # Phase 4A: latest 5 certificates for the "Recent Certificates" section
+    recent_certificates = (
+        CourseCertificate.objects
+        .filter(student=request.user)
+        .select_related('course')
+        .order_by('-issued_at')[:5]
+    )
+
+    # Phase 4A: quiz attempt count + average score (Performance Summary)
+    # Aggregate computed in the database rather than in Python — single query.
+    quiz_stats = all_attempts.aggregate(
+        attempt_count=Count('id'),
+        avg_percentage=Avg('percentage'),
+    )
+    quiz_attempt_count = quiz_stats['attempt_count'] or 0
+    average_quiz_score = (
+        round(quiz_stats['avg_percentage'])
+        if quiz_stats['avg_percentage'] is not None
+        else 0
+    )
+
     context = {
-        'enrollments':        enrollments,
-        'available_quizzes':  available_quizzes,
-        'recent_attempts':    recent_attempts,
-        'progress_map':       progress_map,
-        'completed_courses':  completed_courses,
-        'certificate_count':  certificate_count,   # Phase 3E
+        'enrollments':              enrollments,
+        'available_quizzes':        available_quizzes,
+        'recent_attempts':          recent_attempts,
+        'progress_map':             progress_map,
+        'completed_courses':        completed_courses,
+        'certificate_count':        certificate_count,
+        # Phase 4A additions
+        'total_completed_lessons':  total_completed_lessons,
+        'recent_certificates':      recent_certificates,
+        'quiz_attempt_count':       quiz_attempt_count,
+        'average_quiz_score':       average_quiz_score,
     }
     return render(request, 'courses/student_dashboard.html', context)
 

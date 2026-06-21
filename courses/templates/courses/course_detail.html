@@ -119,8 +119,32 @@
             </div>
 
             {% if progress.is_complete %}
-              <div style="margin-top:14px;padding:10px 14px;background:#d4edda;border-radius:var(--radius-sm);text-align:center;font-weight:700;color:#155724;font-size:.95rem;">
-                🎓 You have completed this course! Congratulations.
+              <!-- Phase 3E: Course Completion Page content (Feature 7) -->
+              <div style="margin-top:14px;padding:20px;background:#d4edda;border-radius:var(--radius-sm);text-align:center;">
+                <div style="font-size:1.8rem;margin-bottom:6px;">🎉</div>
+                <div style="font-weight:700;color:#155724;font-size:1.1rem;margin-bottom:4px;">
+                  Congratulations!
+                </div>
+                <div style="color:#155724;font-size:.92rem;margin-bottom:14px;">
+                  You have completed this course.
+                </div>
+                {% if certificate %}
+                  <div style="font-size:.85rem;color:#155724;margin-bottom:10px;">
+                    🏆 Certificate Available
+                  </div>
+                  <a href="{% url 'certificate_print' certificate.pk %}"
+                     class="btn btn-gold" target="_blank">
+                    Download Certificate
+                  </a>
+                  <a href="{% url 'certificate_detail' certificate.pk %}"
+                     class="btn btn-ghost btn-sm" style="margin-left:8px;">
+                    View Details
+                  </a>
+                {% else %}
+                  <div style="font-size:.85rem;color:#155724;">
+                    Finalizing your certificate — refresh in a moment.
+                  </div>
+                {% endif %}
               </div>
             {% elif progress.first_incomplete and lessons %}
               <div style="margin-top:14px;">
@@ -163,6 +187,12 @@
                 </div>
                 {% if progress.is_complete %}
                   <p style="font-size:.78rem;color:var(--success);margin-top:5px;font-weight:600;">✓ Course completed</p>
+                  {% if certificate %}
+                    <a href="{% url 'certificate_print' certificate.pk %}" target="_blank"
+                       class="btn btn-gold btn-sm" style="width:100%;justify-content:center;margin-top:8px;">
+                      🏆 Download Certificate
+                    </a>
+                  {% endif %}
                 {% endif %}
               </div>
             {% endif %}

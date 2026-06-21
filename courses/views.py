@@ -1,8 +1,8 @@
 """
 courses/views.py
 
-All existing Phase 1/2/3B views are preserved exactly.
-Phase 3D additions are clearly marked.
+All existing Phase 1/2/3B/3D views are preserved exactly.
+Phase 3E additions are clearly marked.
 """
 
 from django.contrib import messages
@@ -17,27 +17,16 @@ from accounts.models import User
 from assessments.models import Quiz, QuizAttempt
 
 from .forms import CourseForm, LessonForm
-from .models import Category, Course, Enrollment, Lesson, LessonProgress
+from .models import Category, Course, CourseCertificate, Enrollment, Lesson, LessonProgress
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Phase 3D — Progress helpers
-# These are pure functions with no side-effects; they are called by multiple
-# views so they live here rather than being duplicated.
+# Phase 3D — Progress helpers  (unchanged)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _get_course_progress(student, course):
     """
     Returns a dict with progress data for one student / course pair.
-
-    Keys
-    ----
-    total_lessons      : int   — number of lessons in the course
-    completed_lessons  : int   — lessons this student has completed
-    percentage         : int   — rounded completion percentage (0–100)
-    is_complete        : bool  — True when percentage == 100
-    first_incomplete   : Lesson|None — the first lesson not yet completed,
-                         used for the "Continue Learning" button
 
     Performance: two queries total per call.  Callers that need progress for
     many courses should use _get_progress_map() instead.
@@ -80,11 +69,7 @@ def _get_course_progress(student, course):
 def _get_progress_map(student, courses):
     """
     Efficient bulk version of _get_course_progress for a list/queryset of courses.
-
-    Fetches all relevant LessonProgress rows in TWO queries total regardless
-    of how many courses are passed — avoids N+1 on the dashboard.
-
-    Returns a dict keyed by course.pk → progress dict (same shape as above).
+    Fetches all relevant LessonProgress rows in TWO queries total — avoids N+1.
     """
     course_list  = list(courses)
     if not course_list:
@@ -92,19 +77,16 @@ def _get_progress_map(student, courses):
 
     course_ids   = [c.pk for c in course_list]
 
-    # Query 1: all lessons for these courses
     lessons_qs   = (
         Lesson.objects
         .filter(course_id__in=course_ids)
         .order_by('order', 'created_at')
     )
-    # Group by course
     from collections import defaultdict
     lessons_by_course = defaultdict(list)
     for lesson in lessons_qs:
         lessons_by_course[lesson.course_id].append(lesson)
 
-    # Query 2: all completed progress records for this student across these courses
     completed_qs = (
         LessonProgress.objects
         .filter(
@@ -139,7 +121,95 @@ def _get_progress_map(student, courses):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  PUBLIC PAGES  (unchanged)
+# Phase 3E — Certificate eligibility & automatic issuance
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _quizzes_all_passed(student, course):
+    """
+    Returns True if every Quiz belonging to `course` has at least one
+    PASSED QuizAttempt by `student`.
+
+    If the course has zero quizzes, this returns True (vacuously) — the
+    "no quiz OR passed all quizzes" rule in the spec means a course with
+    no quizzes never blocks certificate eligibility on this condition.
+
+    Performance: 2 queries regardless of how many quizzes the course has —
+    one to list quiz IDs, one to list which of those IDs the student has
+    a passing attempt for.
+    """
+    quiz_ids = list(course.quizzes.values_list('id', flat=True))
+    if not quiz_ids:
+        return True
+
+    passed_quiz_ids = set(
+        QuizAttempt.objects
+        .filter(student=student, quiz_id__in=quiz_ids, passed=True)
+        .values_list('quiz_id', flat=True)
+        .distinct()
+    )
+    return set(quiz_ids).issubset(passed_quiz_ids)
+
+
+def _is_eligible_for_certificate(student, course):
+    """
+    Full eligibility check per Phase 3E spec:
+
+      1. Enrolled in course
+      AND
+      2. Completed all lessons
+      AND
+      3. Course contains no quiz  OR  passed all quizzes belonging to course
+
+    Returns True/False. Does not create anything — see
+    _check_and_issue_certificate for the side-effecting version.
+    """
+    enrolled = Enrollment.objects.filter(student=student, course=course).exists()
+    if not enrolled:
+        return False
+
+    progress = _get_course_progress(student, course)
+    if not progress['is_complete'] or progress['total_lessons'] == 0:
+        return False
+
+    if not _quizzes_all_passed(student, course):
+        return False
+
+    return True
+
+
+def _check_and_issue_certificate(student, course):
+    """
+    Checks eligibility and creates a CourseCertificate if one does not
+    already exist for this (student, course) pair.
+
+    Safe to call repeatedly — get_or_create on the unique_together
+    (student, course) constraint guarantees no duplicates are ever created,
+    even under concurrent requests.
+
+    Returns the CourseCertificate instance if the student is eligible
+    (whether newly created or pre-existing), or None if not eligible.
+
+    This is called from:
+      - lesson_complete  (after marking a lesson complete — the most common
+        trigger, since completing the last lesson is what finishes a course)
+      - quiz_submit is NOT modified per the "do not modify quiz logic" rule;
+        instead, certificate eligibility is also re-checked whenever the
+        student visits course_detail, so passing a quiz after finishing all
+        lessons still results in a certificate appearing without needing to
+        touch assessments/views.py.
+    """
+    if not _is_eligible_for_certificate(student, course):
+        return None
+
+    certificate, created = CourseCertificate.objects.get_or_create(
+        student=student,
+        course=course,
+    )
+    return certificate
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  PUBLIC PAGES  (unchanged except course_detail, marked below)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def home(request):
@@ -205,27 +275,36 @@ def course_list(request):
 def course_detail(request, slug):
     """
     Public course detail page.
-    Phase 3D: adds progress bar for enrolled students.
+    Phase 3D: progress bar for enrolled students.
+    Phase 3E: certificate eligibility check + certificate CTA.
     """
     course      = get_object_or_404(Course, slug=slug, is_published=True)
     lessons     = course.lessons.all()
     is_enrolled = False
-    progress    = None     # Phase 3D — only set for enrolled students
+    progress    = None     # Phase 3D
+    certificate = None     # Phase 3E
 
     if request.user.is_authenticated:
         is_enrolled = Enrollment.objects.filter(
             student=request.user, course=course
         ).exists()
 
-        # Phase 3D: fetch progress only for enrolled students
         if is_enrolled and request.user.is_student:
             progress = _get_course_progress(request.user, course)
+
+            # Phase 3E: re-check eligibility every time the student views
+            # the course detail page. This catches the case where a student
+            # finishes their last quiz attempt after already completing
+            # all lessons — without touching assessments/views.py at all.
+            if progress['is_complete']:
+                certificate = _check_and_issue_certificate(request.user, course)
 
     context = {
         'course':       course,
         'lessons':      lessons,
         'is_enrolled':  is_enrolled,
-        'progress':     progress,   # Phase 3D
+        'progress':     progress,      # Phase 3D
+        'certificate':  certificate,   # Phase 3E
     }
     return render(request, 'courses/course_detail.html', context)
 
@@ -254,15 +333,12 @@ def enroll(request, slug):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  LESSON VIEWER  (Phase 3D: adds completion status to context)
+#  LESSON VIEWER  (unchanged from Phase 3D)
 # ─────────────────────────────────────────────────────────────────────────────
 
 @login_required
 def lesson_view(request, course_slug, lesson_id):
-    """
-    View a lesson.
-    Phase 3D: passes is_completed flag and neighbour lessons to the template.
-    """
+    """View a lesson. Passes completion status and neighbour lessons to template."""
     course = get_object_or_404(Course, slug=course_slug, is_published=True)
     lesson = get_object_or_404(Lesson, id=lesson_id, course=course)
 
@@ -280,7 +356,6 @@ def lesson_view(request, course_slug, lesson_id):
 
     all_lessons = list(course.lessons.order_by('order', 'created_at'))
 
-    # Phase 3D: completion state for sidebar and Mark Complete button
     is_completed = False
     completed_ids = set()
     if request.user.is_student:
@@ -291,7 +366,6 @@ def lesson_view(request, course_slug, lesson_id):
         )
         is_completed = lesson.pk in completed_ids
 
-    # Determine prev / next lessons for navigation
     try:
         current_index = next(i for i, l in enumerate(all_lessons) if l.pk == lesson.pk)
     except StopIteration:
@@ -304,16 +378,17 @@ def lesson_view(request, course_slug, lesson_id):
         'course':        course,
         'lesson':        lesson,
         'all_lessons':   all_lessons,
-        'completed_ids': completed_ids,   # Phase 3D — for sidebar checkmarks
-        'is_completed':  is_completed,    # Phase 3D — for Mark Complete button
-        'prev_lesson':   prev_lesson,     # Phase 3D — navigation
-        'next_lesson':   next_lesson,     # Phase 3D — navigation
+        'completed_ids': completed_ids,
+        'is_completed':  is_completed,
+        'prev_lesson':   prev_lesson,
+        'next_lesson':   next_lesson,
     }
     return render(request, 'courses/lesson_view.html', context)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Phase 3D — Mark Lesson Complete (toggle)
+#  Phase 3E — Now also triggers certificate issuance check on completion
 # ─────────────────────────────────────────────────────────────────────────────
 
 @login_required
@@ -321,14 +396,12 @@ def lesson_complete(request, lesson_id):
     """
     POST-only toggle: marks a lesson complete or incomplete for the student.
 
-    Security
-    --------
-    - Student must be authenticated (@login_required).
-    - Student must be enrolled in the lesson's course.
-    - Only students can use this endpoint; teachers get PermissionDenied.
-
-    After toggling, redirects back to the lesson view so the page reloads
-    with the updated button state.
+    Phase 3E addition: after marking a lesson COMPLETE (not incomplete),
+    checks whether the student has now finished the entire course and, if
+    so and they also meet the quiz-passing condition, automatically issues
+    a CourseCertificate. This is the primary trigger point for certificate
+    creation since finishing the last lesson is the most common way a
+    course gets completed.
     """
     if request.method != 'POST':
         return redirect('home')
@@ -341,7 +414,6 @@ def lesson_complete(request, lesson_id):
         pk=lesson_id,
     )
 
-    # Must be enrolled
     enrolled = Enrollment.objects.filter(
         student=request.user,
         course=lesson.course,
@@ -349,7 +421,6 @@ def lesson_complete(request, lesson_id):
     if not enrolled:
         raise PermissionDenied
 
-    # get_or_create is safe against race conditions on the unique constraint
     progress, created = LessonProgress.objects.get_or_create(
         student=request.user,
         lesson=lesson,
@@ -369,16 +440,25 @@ def lesson_complete(request, lesson_id):
         progress.save()
         messages.success(request, f"✓ '{lesson.title}' marked as complete!")
 
+        # Phase 3E: check for course completion + certificate eligibility
+        certificate = _check_and_issue_certificate(request.user, lesson.course)
+        if certificate is not None:
+            messages.success(
+                request,
+                f"🎉 Congratulations! You've completed '{lesson.course.title}'. "
+                f"Your certificate is ready."
+            )
+
     return redirect('lesson_view', course_slug=lesson.course.slug, lesson_id=lesson.pk)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  STUDENT DASHBOARD  (Phase 3D: adds progress data)
+#  STUDENT DASHBOARD  (Phase 3D progress; Phase 3E adds certificate count)
 # ─────────────────────────────────────────────────────────────────────────────
 
 @login_required
 def student_dashboard(request):
-    """Student dashboard with progress tracking (Phase 3D)."""
+    """Student dashboard with progress tracking and certificate count."""
     if not request.user.is_student:
         if request.user.is_teacher:
             return redirect('teacher_dashboard')
@@ -390,7 +470,6 @@ def student_dashboard(request):
         .select_related('course', 'course__teacher')
     )
 
-    # Phase 3B
     enrolled_course_ids = enrollments.values_list('course_id', flat=True)
     available_quizzes   = (
         Quiz.objects
@@ -405,43 +484,40 @@ def student_dashboard(request):
         .order_by('-created_at')[:5]
     )
 
-    # Phase 3D: bulk progress for all enrolled courses (2 queries only)
     enrolled_courses = [e.course for e in enrollments]
     progress_map     = _get_progress_map(request.user, enrolled_courses)
 
-    # Attach progress to each enrollment so the template can access it via
-    # enrollment.progress — avoids extra lookups in the template
     for enrollment in enrollments:
         enrollment.progress = progress_map.get(enrollment.course.pk, {
             'total_lessons': 0, 'completed_lessons': 0,
             'percentage': 0, 'is_complete': False, 'first_incomplete': None,
         })
 
-    # Phase 3D: completion stats
     completed_courses = sum(
         1 for p in progress_map.values() if p['is_complete']
     )
 
+    # Phase 3E: certificate count for the stats row
+    certificate_count = CourseCertificate.objects.filter(student=request.user).count()
+
     context = {
-        'enrollments':       enrollments,
-        'available_quizzes': available_quizzes,
-        'recent_attempts':   recent_attempts,
-        'progress_map':      progress_map,    # Phase 3D
-        'completed_courses': completed_courses,  # Phase 3D
+        'enrollments':        enrollments,
+        'available_quizzes':  available_quizzes,
+        'recent_attempts':    recent_attempts,
+        'progress_map':       progress_map,
+        'completed_courses':  completed_courses,
+        'certificate_count':  certificate_count,   # Phase 3E
     }
     return render(request, 'courses/student_dashboard.html', context)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-#  TEACHER DASHBOARD  (Phase 3D: adds completion analytics)
+#  TEACHER DASHBOARD  (Phase 3D completion analytics; Phase 3E certificates)
 # ─────────────────────────────────────────────────────────────────────────────
 
 @login_required
 def teacher_dashboard(request):
-    """
-    Teacher dashboard.
-    Phase 3D: adds per-course completion analytics.
-    """
+    """Teacher dashboard with completion analytics and certificates issued."""
     if not request.user.is_teacher:
         if request.user.is_student:
             return redirect('student_dashboard')
@@ -453,7 +529,6 @@ def teacher_dashboard(request):
         .select_related('category')
     )
 
-    # Phase 3B
     recent_attempts = (
         QuizAttempt.objects
         .filter(quiz__course__teacher=request.user)
@@ -462,26 +537,15 @@ def teacher_dashboard(request):
     )
 
     # Phase 3D: per-course completion analytics
-    # For each course, count:
-    #   enrolled_count   — total students enrolled
-    #   completed_count  — students who have completed every lesson
-    #
-    # Strategy: for each course get the lesson count, then count distinct
-    # students whose completed LessonProgress rows == lesson count.
-    # Done in Python to avoid complex subquery syntax across DB backends.
     course_analytics = []
     for course in courses:
-        lesson_count   = course.lesson_count   # uses the existing property
-        enrolled_count = course.enrollment_count  # uses the existing property
+        lesson_count   = course.lesson_count
+        enrolled_count = course.enrollment_count
 
         if lesson_count > 0 and enrolled_count > 0:
-            # Students who have all lessons completed
             completed_count = (
                 LessonProgress.objects
-                .filter(
-                    lesson__course=course,
-                    completed=True,
-                )
+                .filter(lesson__course=course, completed=True)
                 .values('student')
                 .annotate(done=Count('id'))
                 .filter(done=lesson_count)
@@ -499,12 +563,32 @@ def teacher_dashboard(request):
             'completion_rate': completion_rate,
         })
 
+    # Phase 3E: certificates issued per course (one query, grouped)
+    cert_counts_qs = (
+        CourseCertificate.objects
+        .filter(course__teacher=request.user)
+        .values('course_id')
+        .annotate(total=Count('id'))
+    )
+    cert_counts_by_course = {row['course_id']: row['total'] for row in cert_counts_qs}
+
+    certificate_analytics = [
+        {
+            'course': course,
+            'certificate_count': cert_counts_by_course.get(course.pk, 0),
+        }
+        for course in courses
+    ]
+    total_certificates_issued = sum(cert_counts_by_course.values())
+
     context = {
-        'courses':           courses,
-        'total_courses':     courses.count(),
-        'published_count':   courses.filter(is_published=True).count(),
-        'recent_attempts':   recent_attempts,
-        'course_analytics':  course_analytics,   # Phase 3D
+        'courses':                   courses,
+        'total_courses':             courses.count(),
+        'published_count':           courses.filter(is_published=True).count(),
+        'recent_attempts':           recent_attempts,
+        'course_analytics':          course_analytics,           # Phase 3D
+        'certificate_analytics':     certificate_analytics,      # Phase 3E
+        'total_certificates_issued': total_certificates_issued,  # Phase 3E
     }
     return render(request, 'courses/teacher_dashboard.html', context)
 
@@ -653,3 +737,104 @@ def category_detail(request, slug):
         'other_categories':  other_categories,
     }
     return render(request, 'courses/category_detail.html', context)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Phase 3E — Certificate Views
+# ─────────────────────────────────────────────────────────────────────────────
+
+@login_required
+def certificate_list(request):
+    """
+    'My Certificates' page.
+    Students only see their own certificates.
+    """
+    if not request.user.is_student:
+        if request.user.is_teacher:
+            return redirect('teacher_dashboard')
+        return redirect('home')
+
+    certificates = (
+        CourseCertificate.objects
+        .filter(student=request.user)
+        .select_related('course', 'course__teacher')
+        .order_by('-issued_at')
+    )
+
+    context = {'certificates': certificates}
+    return render(request, 'courses/certificate_list.html', context)
+
+
+@login_required
+def certificate_detail(request, certificate_id):
+    """
+    Certificate detail page at /certificates/<id>/.
+
+    Security: students can only view their own certificate; teachers can
+    only view certificates from courses they own; admins are unrestricted.
+    """
+    certificate = get_object_or_404(
+        CourseCertificate.objects.select_related(
+            'student', 'course', 'course__teacher'
+        ),
+        pk=certificate_id,
+    )
+
+    if request.user.is_student:
+        if certificate.student != request.user:
+            raise PermissionDenied
+    elif request.user.is_teacher:
+        if certificate.course.teacher != request.user:
+            raise PermissionDenied
+    # Admins (is_staff) pass through unrestricted
+
+    context = {'certificate': certificate}
+    return render(request, 'courses/certificate_detail.html', context)
+
+
+@login_required
+def certificate_print(request, certificate_id):
+    """
+    Printable certificate page — minimal layout, browser print only.
+    Same security rules as certificate_detail.
+    """
+    certificate = get_object_or_404(
+        CourseCertificate.objects.select_related(
+            'student', 'course', 'course__teacher'
+        ),
+        pk=certificate_id,
+    )
+
+    if request.user.is_student:
+        if certificate.student != request.user:
+            raise PermissionDenied
+    elif request.user.is_teacher:
+        if certificate.course.teacher != request.user:
+            raise PermissionDenied
+
+    context = {'certificate': certificate}
+    return render(request, 'courses/certificate_print.html', context)
+
+
+def certificate_verify(request, certificate_id):
+    """
+    Public certificate verification page at /certificate/verify/<certificate_id>/.
+
+    No login required — anyone with a certificate_id (e.g. from a printed
+    certificate) can verify it is genuine. Looks up by the certificate_id
+    string field, NOT the numeric primary key, since that is what is printed
+    on the certificate itself.
+    """
+    certificate = (
+        CourseCertificate.objects
+        .select_related('student', 'course')
+        .filter(certificate_id=certificate_id)
+        .first()
+    )
+
+    context = {
+        'certificate_id_queried': certificate_id,
+        'certificate': certificate,
+        'is_valid': certificate is not None,
+    }
+    return render(request, 'courses/certificate_verify.html', context)

@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% block title %}Certificate Verification{% endblock %}
+
+{% block content %}
+<div class="section-sm">
+  <div class="container" style="max-width:600px;">
+
+    <div class="text-center" style="margin-bottom:24px;">
+      <h1 style="font-size:1.8rem;">Certificate Verification</h1>
+      <p style="color:var(--text-3);">
+        Verify the authenticity of a Nur Al-Ilm course certificate.
+      </p>
+    </div>
+
+    {% if is_valid %}
+      <!-- ── VALID CERTIFICATE ── -->
+      <div class="card">
+        <div class="card-body" style="text-align:center;padding:40px 32px;">
+
+          <div style="font-size:3rem;margin-bottom:12px;">✅</div>
+          <div class="badge badge-green" style="font-size:.95rem;padding:8px 20px;margin-bottom:24px;">
+            VALID CERTIFICATE
+          </div>
+
+          <div style="background:var(--surface-2);border-radius:var(--radius);padding:24px;text-align:left;">
+            <div style="display:grid;grid-template-columns:130px 1fr;gap:14px;font-size:.95rem;">
+
+              <div style="color:var(--text-3);">Certificate No.</div>
+              <div style="font-weight:700;color:var(--primary);">
+                <code>{{ certificate.certificate_id }}</code>
+              </div>
+
+              <div style="color:var(--text-3);">Student</div>
+              <div style="font-weight:600;color:var(--text);">
+                {{ certificate.student.get_full_name|default:certificate.student.username }}
+              </div>
+
+              <div style="color:var(--text-3);">Course</div>
+              <div style="font-weight:600;color:var(--text);">{{ certificate.course.title }}</div>
+
+              <div style="color:var(--text-3);">Issue Date</div>
+              <div style="font-weight:600;color:var(--text);">{{ certificate.issued_at|date:"F j, Y" }}</div>
+
+            </div>
+          </div>
+
+          <p style="font-size:.85rem;color:var(--text-3);margin-top:20px;">
+            This certificate was issued by Nur Al-Ilm Islamic Learning Platform
+            and is authentic.
+          </p>
+        </div>
+      </div>
+
+    {% else %}
+      <!-- ── INVALID / NOT FOUND ── -->
+      <div class="card">
+        <div class="card-body" style="text-align:center;padding:40px 32px;">
+
+          <div style="font-size:3rem;margin-bottom:12px;">❌</div>
+          <div class="badge badge-red" style="font-size:.95rem;padding:8px 20px;margin-bottom:20px;">
+            CERTIFICATE NOT FOUND
+          </div>
+
+          <p style="color:var(--text-2);margin-bottom:8px;">
+            No certificate matches the ID:
+          </p>
+          <code style="background:var(--surface-2);padding:6px 14px;border-radius:6px;font-size:.95rem;color:var(--danger);">
+            {{ certificate_id_queried }}
+          </code>
+
+          <p style="font-size:.85rem;color:var(--text-3);margin-top:20px;">
+            Please check the certificate number and try again, or contact
+            the issuing teacher if you believe this is an error.
+          </p>
+        </div>
+      </div>
+    {% endif %}
+
+    <!-- Manual lookup form -->
+    <div class="card" style="margin-top:20px;">
+      <div class="card-body">
+        <h4 style="margin-bottom:12px;">Verify Another Certificate</h4>
+        <form method="get" action="" onsubmit="event.preventDefault(); window.location.href='/certificate/verify/' + encodeURIComponent(document.getElementById('cert-lookup').value.trim()) + '/';">
+          <div class="flex gap-2">
+            <input type="text" id="cert-lookup" class="form-control"
+                   placeholder="e.g. NAL-2026-000001" required>
+            <button type="submit" class="btn btn-primary">Verify</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

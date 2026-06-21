@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Certificate — {{ certificate.certificate_id }}</title>
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'css/main.css' %}">
+  <style>
+    /* ── Printable certificate — standalone page, no site nav/footer ── */
+    body {
+      background: #f4f1ea;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+
+    .certificate-page {
+      width: 100%;
+      max-width: 900px;
+    }
+
+    .certificate-frame {
+      background: #fffdf8;
+      border: 10px solid #1a6b5e;
+      outline: 2px solid #b8860b;
+      outline-offset: -22px;
+      border-radius: 4px;
+      padding: 64px 56px;
+      text-align: center;
+      position: relative;
+    }
+
+    .cert-org {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      margin-bottom: 28px;
+    }
+
+    .cert-org-icon {
+      width: 48px;
+      height: 48px;
+      background: linear-gradient(135deg, #1a6b5e, #124f45);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 1.4rem;
+    }
+
+    .cert-org-name {
+      font-family: 'Scheherazade New', serif;
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: #1a6b5e;
+    }
+
+    .cert-org-sub {
+      font-size: .8rem;
+      color: #8f897f;
+      letter-spacing: .04em;
+    }
+
+    .cert-label {
+      font-size: .85rem;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+      color: #b8860b;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .cert-title {
+      font-family: 'Scheherazade New', serif;
+      font-size: 2.4rem;
+      color: #1a1814;
+      margin-bottom: 36px;
+      font-weight: 700;
+    }
+
+    .cert-body-text {
+      font-size: 1.05rem;
+      color: #5c5649;
+      line-height: 1.9;
+      max-width: 600px;
+      margin: 0 auto 8px;
+    }
+
+    .cert-student-name {
+      font-family: 'Scheherazade New', serif;
+      font-size: 2rem;
+      color: #1a6b5e;
+      font-weight: 700;
+      margin: 18px 0;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #b8860b;
+      display: inline-block;
+    }
+
+    .cert-course-name {
+      font-weight: 700;
+      color: #1a1814;
+      font-size: 1.2rem;
+    }
+
+    .cert-footer {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      margin-top: 56px;
+      padding-top: 20px;
+      border-top: 1px solid #e2ddd4;
+    }
+
+    .cert-footer-block {
+      text-align: left;
+      font-size: .82rem;
+      color: #8f897f;
+    }
+
+    .cert-footer-block strong {
+      display: block;
+      color: #1a1814;
+      font-size: .92rem;
+      margin-bottom: 2px;
+    }
+
+    .cert-footer-block.right { text-align: right; }
+
+    .cert-arabic {
+      font-family: 'Scheherazade New', serif;
+      font-size: 1.1rem;
+      color: #b8860b;
+      opacity: .75;
+      margin-top: 24px;
+    }
+
+    .print-toolbar {
+      max-width: 900px;
+      margin: 0 auto 16px;
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+    }
+
+    /* ── Print-specific rules ── */
+    @media print {
+      body { background: #fff; padding: 0; }
+      .print-toolbar { display: none; }
+      .certificate-frame {
+        border-width: 8px;
+        box-shadow: none;
+      }
+      @page { size: landscape; margin: 0.4in; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="certificate-page">
+
+    <!-- Toolbar (hidden when printing) -->
+    <div class="print-toolbar">
+      <button onclick="window.print()" class="btn btn-primary btn-lg">
+        🖨 Print Certificate
+      </button>
+      <a href="{% url 'certificate_detail' certificate.pk %}" class="btn btn-ghost">
+        ← Back
+      </a>
+    </div>
+
+    <!-- ── Certificate ── -->
+    <div class="certificate-frame">
+
+      <div class="cert-org">
+        <div class="cert-org-icon">☪</div>
+        <div style="text-align:left;">
+          <div class="cert-org-name">Nur Al-Ilm</div>
+          <div class="cert-org-sub">ISLAMIC LEARNING PLATFORM</div>
+        </div>
+      </div>
+
+      <div class="cert-label">Certificate of Completion</div>
+      <div class="cert-title">Certificate</div>
+
+      <p class="cert-body-text">This certifies that</p>
+      <div class="cert-student-name">
+        {{ certificate.student.get_full_name|default:certificate.student.username }}
+      </div>
+      <p class="cert-body-text">
+        has successfully completed<br>
+        <span class="cert-course-name">{{ certificate.course.title }}</span><br>
+        on Nur Al-Ilm Islamic Learning Platform.
+      </p>
+
+      <div class="cert-arabic">بِسْمِ اللهِ الرَّحْمٰنِ الرَّحِيْمِ</div>
+
+      <div class="cert-footer">
+        <div class="cert-footer-block">
+          <strong>{{ certificate.issued_at|date:"F j, Y" }}</strong>
+          Date Issued
+        </div>
+        <div class="cert-footer-block right">
+          <strong>{{ certificate.certificate_id }}</strong>
+          Certificate Number
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+</body>
+</html>

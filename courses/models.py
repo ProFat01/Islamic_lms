@@ -1,8 +1,7 @@
-from django.db import models
+from django.db import models, transaction
 from django.urls import reverse
 from django.utils.text import slugify
 from django.conf import settings
-
 
 class Category(models.Model):
     """
@@ -222,3 +221,108 @@ class LessonProgress(models.Model):
             f"{status} {self.student.username} — "
             f"{self.lesson.course.title} / {self.lesson.title}"
         )
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 3E — Certificate Generation & Graduation System
+# ─────────────────────────────────────────────────────────────────────────────
+
+class CourseCertificate(models.Model):
+    """
+    Represents a certificate of completion issued to a student for a course.
+
+    Relationship map
+    ----------------
+    accounts.User (student) ──< CourseCertificate >── Course
+
+    Design decisions
+    ----------------
+    - unique_together on (student, course) guarantees at most one certificate
+      per student per course at the database level — this is the canonical
+      "never create duplicates" guarantee the spec requires.
+
+    - on_delete=CASCADE on both FKs: deleting a student or a course removes
+      any certificates tied to them. No orphaned certificate rows.
+
+    - certificate_id is a separate unique, human-readable identifier
+      (e.g. "NAL-2026-000001") distinct from the numeric primary key.
+      It is generated once, at creation time, and never changes — this is
+      the number printed on the certificate and used for public verification,
+      so it must remain stable even if internal database IDs were ever
+      renumbered.
+
+    - Generation uses a transaction.atomic() block with select_for_update()
+      on a per-year counter query to avoid two simultaneous requests
+      generating the same certificate_id (race condition safety on SQLite
+      and Postgres alike).
+    """
+
+    student = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name='certificates',
+        help_text="The student who earned this certificate.",
+    )
+    course = models.ForeignKey(
+        'Course',
+        on_delete=models.CASCADE,
+        related_name='certificates',
+        help_text="The course this certificate was issued for.",
+    )
+    certificate_id = models.CharField(
+        max_length=20,
+        unique=True,
+        editable=False,
+        help_text="Auto-generated unique certificate number, e.g. NAL-2026-000001.",
+    )
+    issued_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="Date and time the certificate was issued.",
+    )
+
+    class Meta:
+        unique_together = ('student', 'course')
+        ordering = ['-issued_at']
+        verbose_name = 'Course Certificate'
+        verbose_name_plural = 'Course Certificates'
+
+    def __str__(self):
+        return f"{self.certificate_id} — {self.student.username} — {self.course.title}"
+
+    def save(self, *args, **kwargs):
+        if not self.certificate_id:
+            self.certificate_id = self._generate_certificate_id()
+        super().save(*args, **kwargs)
+
+    @staticmethod
+    def _generate_certificate_id():
+        """
+        Generates the next sequential certificate ID for the current year.
+
+        Format:  NAL-<year>-<6-digit zero-padded sequence>
+        Example: NAL-2026-000001, NAL-2026-000002, ...
+
+        The sequence resets each calendar year. Wrapped in select_for_update
+        so concurrent requests cannot read the same "last number" and produce
+        a duplicate — the row lock serialises certificate creation within
+        the same year.
+        """
+        from django.db import transaction
+        from django.utils import timezone
+
+        year = timezone.now().year
+        prefix = f"NAL-{year}-"
+
+        with transaction.atomic():
+            last = (
+                CourseCertificate.objects
+                .select_for_update()
+                .filter(certificate_id__startswith=prefix)
+                .order_by('-certificate_id')
+                .first()
+            )
+            if last:
+                last_seq = int(last.certificate_id.split('-')[-1])
+                next_seq = last_seq + 1
+            else:
+                next_seq = 1
+
+            return f"{prefix}{next_seq:06d}"

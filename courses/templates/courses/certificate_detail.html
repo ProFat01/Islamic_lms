@@ -1,0 +1,76 @@
+{% extends 'base.html' %}
+{% block title %}Certificate {{ certificate.certificate_id }}{% endblock %}
+
+{% block content %}
+<div class="section-sm">
+  <div class="container" style="max-width:680px;">
+
+    <!-- Breadcrumb -->
+    <div class="breadcrumb">
+      {% if request.user.is_student %}
+        <a href="{% url 'certificate_list' %}">My Certificates</a>
+      {% else %}
+        <a href="{% url 'teacher_dashboard' %}">Dashboard</a>
+      {% endif %}
+      <span class="sep">›</span>
+      <span>{{ certificate.certificate_id }}</span>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <div class="card-body" style="text-align:center;padding:40px 32px;">
+
+        <div style="font-size:3rem;margin-bottom:12px;">🎓</div>
+        <div class="badge badge-green" style="font-size:.85rem;padding:6px 16px;margin-bottom:20px;">
+          ✓ Valid Certificate
+        </div>
+
+        <h2 style="margin-bottom:6px;">Certificate of Completion</h2>
+        <p style="color:var(--text-3);margin-bottom:28px;">
+          Issued by Nur Al-Ilm Islamic Learning Platform
+        </p>
+
+        <!-- Details grid -->
+        <div style="background:var(--surface-2);border-radius:var(--radius);padding:24px;text-align:left;margin-bottom:24px;">
+          <div style="display:grid;grid-template-columns:140px 1fr;gap:14px;font-size:.95rem;">
+
+            <div style="color:var(--text-3);">Certificate No.</div>
+            <div style="font-weight:700;color:var(--primary);">
+              <code style="font-size:1rem;">{{ certificate.certificate_id }}</code>
+            </div>
+
+            <div style="color:var(--text-3);">Student Name</div>
+            <div style="font-weight:600;color:var(--text);">
+              {{ certificate.student.get_full_name|default:certificate.student.username }}
+            </div>
+
+            <div style="color:var(--text-3);">Course</div>
+            <div style="font-weight:600;color:var(--text);">{{ certificate.course.title }}</div>
+
+            <div style="color:var(--text-3);">Date Issued</div>
+            <div style="font-weight:600;color:var(--text);">{{ certificate.issued_at|date:"F j, Y" }}</div>
+
+          </div>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex-center gap-2 flex-wrap">
+          <a href="{% url 'certificate_print' certificate.pk %}" class="btn btn-primary btn-lg" target="_blank">
+            🖨 Print Certificate
+          </a>
+          <a href="{% url 'course_detail' certificate.course.slug %}" class="btn btn-ghost">
+            ← Back to Course
+          </a>
+        </div>
+
+        <!-- Verification hint -->
+        <p style="font-size:.8rem;color:var(--text-3);margin-top:24px;">
+          Anyone can verify this certificate's authenticity at:<br>
+          <code style="font-size:.78rem;">/certificate/verify/{{ certificate.certificate_id }}/</code>
+        </p>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

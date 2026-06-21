@@ -180,6 +180,47 @@
       </div>
     {% endif %}
 
+    <!-- ── Phase 3E: Certificates Issued ── -->
+    <div class="action-bar" style="margin-top:36px;">
+      <h3>Certificates Issued</h3>
+      <span class="badge badge-gold" style="font-size:.85rem;">
+        🏆 {{ total_certificates_issued }} total
+      </span>
+    </div>
+
+    {% if certificate_analytics %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Course</th>
+              <th>Certificates Issued</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in certificate_analytics %}
+              <tr>
+                <td style="font-weight:600;font-size:.9rem;color:var(--text);">
+                  {{ row.course.title }}
+                </td>
+                <td>
+                  <span class="badge {% if row.certificate_count > 0 %}badge-gold{% else %}badge-gray{% endif %}">
+                    🏆 {{ row.certificate_count }}
+                  </span>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state"
+           style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px;">
+        <div class="icon" style="font-size:1.8rem;margin-bottom:6px;">🏆</div>
+        <p style="font-size:.9rem;">No certificates issued yet.</p>
+      </div>
+    {% endif %}
+
     <!-- ── Recent Quiz Attempts (Phase 3B, unchanged) ── -->
     <div class="action-bar" style="margin-top:36px;">
       <h3>Recent Quiz Attempts</h3>

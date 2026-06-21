@@ -20,6 +20,7 @@
     <ul class="sidebar-nav">
       <li><a href="{% url 'student_dashboard' %}" class="active"><span class="nav-icon">🏠</span> Dashboard</a></li>
       <li><a href="{% url 'course_list' %}"><span class="nav-icon">📚</span> Browse Courses</a></li>
+      <li><a href="{% url 'certificate_list' %}"><span class="nav-icon">🎓</span> Certificates</a></li>
       <li><a href="{% url 'profile' %}"><span class="nav-icon">👤</span> My Profile</a></li>
       <li><a href="{% url 'logout' %}"><span class="nav-icon">🚪</span> Sign Out</a></li>
     </ul>
@@ -46,6 +47,13 @@
         <div>
           <div class="stat-card-num">{{ completed_courses }}</div>
           <div class="stat-card-label">Completed Courses</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-icon" style="background:var(--gold-l);color:var(--gold);">🏆</div>
+        <div>
+          <div class="stat-card-num">{{ certificate_count }}</div>
+          <div class="stat-card-label">Certificates Earned</div>
         </div>
       </div>
     </div>

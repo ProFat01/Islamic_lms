@@ -1,0 +1,99 @@
+{% extends 'base.html' %}
+{% block title %}My Certificates{% endblock %}
+
+{% block content %}
+<div class="dashboard-layout">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sidebar-user">
+      <div class="sidebar-avatar">
+        {% if user.profile_picture %}
+          <img src="{{ user.profile_picture.url }}" alt="{{ user.get_full_name }}">
+        {% else %}
+          {{ user.first_name|first|upper }}{{ user.last_name|first|upper }}
+        {% endif %}
+      </div>
+      <div class="sidebar-name">{{ user.get_full_name|default:user.username }}</div>
+      <div class="sidebar-role">{{ user.get_role_display }}</div>
+    </div>
+    <ul class="sidebar-nav">
+      <li><a href="{% url 'student_dashboard' %}"><span class="nav-icon">🏠</span> Dashboard</a></li>
+      <li><a href="{% url 'course_list' %}"><span class="nav-icon">📚</span> Browse Courses</a></li>
+      <li><a href="{% url 'certificate_list' %}" class="active"><span class="nav-icon">🎓</span> Certificates</a></li>
+      <li><a href="{% url 'profile' %}"><span class="nav-icon">👤</span> My Profile</a></li>
+      <li><a href="{% url 'logout' %}"><span class="nav-icon">🚪</span> Sign Out</a></li>
+    </ul>
+  </aside>
+
+  <!-- ── Main ── -->
+  <div class="dashboard-main">
+
+    <div class="dashboard-header">
+      <h1>My Certificates</h1>
+      <p>Certificates earned by completing courses on Nur Al-Ilm.</p>
+    </div>
+
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-card-icon" style="background:var(--gold-l);color:var(--gold);">🎓</div>
+        <div>
+          <div class="stat-card-num">{{ certificates.count }}</div>
+          <div class="stat-card-label">Certificates Earned</div>
+        </div>
+      </div>
+    </div>
+
+    {% if certificates %}
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Course</th>
+              <th>Certificate ID</th>
+              <th>Date Issued</th>
+              <th>Teacher</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for cert in certificates %}
+              <tr>
+                <td style="font-weight:600;color:var(--text);">{{ cert.course.title }}</td>
+                <td>
+                  <code style="background:var(--surface-2);padding:3px 8px;border-radius:4px;font-size:.82rem;color:var(--primary);">
+                    {{ cert.certificate_id }}
+                  </code>
+                </td>
+                <td style="font-size:.85rem;color:var(--text-3);">{{ cert.issued_at|date:"F j, Y" }}</td>
+                <td style="font-size:.85rem;color:var(--text-3);">
+                  {{ cert.course.teacher.get_full_name|default:cert.course.teacher.username }}
+                </td>
+                <td>
+                  <div class="flex gap-1">
+                    <a href="{% url 'certificate_detail' cert.pk %}" class="btn btn-sm btn-outline">View</a>
+                    <a href="{% url 'certificate_print' cert.pk %}" class="btn btn-sm btn-primary" target="_blank">
+                      🖨 Print
+                    </a>
+                  </div>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state"
+           style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);">
+        <div class="icon">🎓</div>
+        <h3>No certificates yet</h3>
+        <p>Complete a course's lessons (and pass its quizzes, if any) to earn your first certificate.</p>
+        <a href="{% url 'course_list' %}" class="btn btn-primary" style="margin-top:16px;">
+          Browse Courses
+        </a>
+      </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

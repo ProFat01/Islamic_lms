@@ -1,14 +1,14 @@
 """
 courses/views.py
 
-All existing Phase 1/2/3B/3D/3E/4A views are preserved exactly.
-Phase 4B (Reviews & Ratings) additions are clearly marked.
+All existing Phase 1/2/3B/3D/3E/4A/4B views are preserved exactly.
+Phase 4B.1 (Advanced Teacher Analytics Dashboard) additions are clearly marked.
 """
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
-from django.db.models import Avg, Count, Q
+from django.db.models import Avg, Count, Max, Min, Q
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 
@@ -834,6 +834,22 @@ def teacher_dashboard(request):
     ]
     total_certificates_issued = sum(cert_counts_by_course.values())
 
+    # Phase 4B.1: lightweight summary numbers for the "View Full Analytics"
+    # teaser cards on the main dashboard — full breakdowns live on the
+    # dedicated /teacher/analytics/ page, these are just headline figures.
+    total_quiz_attempts = QuizAttempt.objects.filter(
+        quiz__course__teacher=request.user
+    ).count()
+
+    rating_agg = Review.objects.filter(course__teacher=request.user).aggregate(
+        avg_rating=Avg('rating'),
+    )
+    average_course_rating = (
+        round(rating_agg['avg_rating'], 1)
+        if rating_agg['avg_rating'] is not None
+        else None
+    )
+
     context = {
         'courses':                   courses,
         'total_courses':             courses.count(),
@@ -842,6 +858,9 @@ def teacher_dashboard(request):
         'course_analytics':          course_analytics,           # Phase 3D
         'certificate_analytics':     certificate_analytics,      # Phase 3E
         'total_certificates_issued': total_certificates_issued,  # Phase 3E
+        # Phase 4B.1 — analytics teaser cards
+        'total_quiz_attempts':       total_quiz_attempts,
+        'average_course_rating':     average_course_rating,
     }
     return render(request, 'courses/teacher_dashboard.html', context)
 
@@ -964,6 +983,7 @@ def lesson_delete(request, course_slug, lesson_id):
         'lesson': lesson, 'course': course
     })
 
+
 # ─────────────────────────────────────────────────────────────────────────────
 #  CATEGORY VIEWS  (unchanged)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -989,6 +1009,7 @@ def category_detail(request, slug):
         'other_categories':  other_categories,
     }
     return render(request, 'courses/category_detail.html', context)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Phase 3E — Certificate Views
@@ -1089,6 +1110,7 @@ def certificate_verify(request, certificate_id):
         'is_valid': certificate is not None,
     }
     return render(request, 'courses/certificate_verify.html', context)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Phase 4B — Review Views
@@ -1260,3 +1282,477 @@ def teacher_reviews(request):
         'highest_rated_course': highest_rated_course,
     }
     return render(request, 'courses/teacher_reviews.html', context)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 4B.1 — Advanced Teacher Analytics Dashboard
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _get_teacher_recent_activity(teacher, limit=10):
+    """
+    Builds a unified, time-ordered activity feed scoped to one teacher's
+    courses, merging FIVE independent event sources:
+
+        1. Enrollment        → "X enrolled in Y"
+        2. LessonProgress     → "X completed lesson Y"
+        3. QuizAttempt        → "X passed/failed quiz Y"
+        4. CourseCertificate  → "X earned a certificate for Y"
+        5. Review             → "X submitted a review for Y"
+
+    Mirrors the exact pattern of _get_recent_activity() (Phase 4A), but
+    every query is scoped by the course's teacher FK instead of by a single
+    student, and the resulting text always names the student so a teacher
+    reading the feed knows *which* student did *what*.
+
+    Performance: 5 queries total regardless of how many courses/students
+    the teacher has, each capped at `limit` rows and using select_related
+    to avoid N+1 lookups when accessing related student/course/quiz objects.
+    """
+    from django.urls import reverse
+
+    events = []
+
+    # ── 1. Enrollments ─────────────────────────────────────────────────────
+    enrollments = (
+        Enrollment.objects
+        .filter(course__teacher=teacher)
+        .select_related('student', 'course')
+        .order_by('-enrolled_at')[:limit]
+    )
+    for e in enrollments:
+        events.append({
+            'type':      'enrollment',
+            'icon':      '📚',
+            'text':      (
+                f"{e.student.get_full_name() or e.student.username} "
+                f"enrolled in \u201c{e.course.title}\u201d"
+            ),
+            'course':    e.course,
+            'url':       reverse('course_detail', kwargs={'slug': e.course.slug}),
+            'timestamp': e.enrolled_at,
+        })
+
+    # ── 2. Completed lessons ──────────────────────────────────────────────
+    completed_lessons = (
+        LessonProgress.objects
+        .filter(lesson__course__teacher=teacher, completed=True)
+        .select_related('student', 'lesson', 'lesson__course')
+        .order_by('-completed_at')[:limit]
+    )
+    for lp in completed_lessons:
+        events.append({
+            'type':      'lesson',
+            'icon':      '✅',
+            'text':      (
+                f"{lp.student.get_full_name() or lp.student.username} "
+                f"completed lesson \u201c{lp.lesson.title}\u201d"
+            ),
+            'course':    lp.lesson.course,
+            'url':       reverse('course_manage', kwargs={'slug': lp.lesson.course.slug}),
+            'timestamp': lp.completed_at,
+        })
+
+    # ── 3. Quiz attempts (pass or fail) ────────────────────────────────────
+    quiz_attempts = (
+        QuizAttempt.objects
+        .filter(quiz__course__teacher=teacher)
+        .select_related('student', 'quiz', 'quiz__course')
+        .order_by('-created_at')[:limit]
+    )
+    for attempt in quiz_attempts:
+        events.append({
+            'type':      'quiz_pass' if attempt.passed else 'quiz_fail',
+            'icon':      '🏅' if attempt.passed else '📝',
+            'text':      (
+                f"{attempt.student.get_full_name() or attempt.student.username} "
+                f"{'passed' if attempt.passed else 'failed'} quiz "
+                f"\u201c{attempt.quiz.title}\u201d ({attempt.percentage}%)"
+            ),
+            'course':    attempt.quiz.course,
+            'url':       reverse('attempt_detail', kwargs={'attempt_id': attempt.pk}),
+            'timestamp': attempt.created_at,
+        })
+
+    # ── 4. Certificates issued ─────────────────────────────────────────────
+    certificates = (
+        CourseCertificate.objects
+        .filter(course__teacher=teacher)
+        .select_related('student', 'course')
+        .order_by('-issued_at')[:limit]
+    )
+    for cert in certificates:
+        events.append({
+            'type':      'certificate',
+            'icon':      '🏆',
+            'text':      (
+                f"{cert.student.get_full_name() or cert.student.username} "
+                f"earned a certificate for \u201c{cert.course.title}\u201d"
+            ),
+            'course':    cert.course,
+            'url':       reverse('certificate_detail', kwargs={'certificate_id': cert.pk}),
+            'timestamp': cert.issued_at,
+        })
+
+    # ── 5. Reviews submitted ───────────────────────────────────────────────
+    reviews = (
+        Review.objects
+        .filter(course__teacher=teacher)
+        .select_related('student', 'course')
+        .order_by('-created_at')[:limit]
+    )
+    for review in reviews:
+        events.append({
+            'type':      'review',
+            'icon':      '⭐',
+            'text':      (
+                f"{review.student.get_full_name() or review.student.username} "
+                f"submitted a {review.rating}-star review for \u201c{review.course.title}\u201d"
+            ),
+            'course':    review.course,
+            'url':       reverse('course_detail', kwargs={'slug': review.course.slug}),
+            'timestamp': review.created_at,
+        })
+
+    # ── Merge, sort newest-first, truncate ─────────────────────────────────
+    events = [e for e in events if e['timestamp'] is not None]
+    events.sort(key=lambda e: e['timestamp'], reverse=True)
+
+    return events[:limit]
+
+
+@login_required
+def teacher_analytics(request):
+    """
+    Advanced Teacher Analytics Dashboard — /courses/teacher/analytics/
+
+    Security: @login_required + explicit is_teacher check. Students are
+    redirected to their own dashboard; any other non-teacher role gets
+    PermissionDenied. No course/student ID is ever taken from the URL on
+    this page, so there is no object-level permission surface to attack —
+    every query below is pre-scoped to course__teacher=request.user (or
+    quiz__course__teacher / lesson__course__teacher for the related models),
+    meaning a teacher can only ever see aggregates over their own courses.
+
+    Performance notes:
+        - All "for course in courses" loops below run a small, fixed number
+          of queries per course (typically 1–2). With a realistic number of
+          courses per teacher (rarely more than a few dozen) this is far
+          simpler and more maintainable than a single giant subquery, and
+          is the same pattern already used by the existing course_analytics
+          block in teacher_dashboard() — kept consistent here deliberately.
+        - Aggregates that don't need to vary per-course (overall totals,
+          top students, recent activity) are computed with single
+          .aggregate() / .annotate() calls rather than Python loops.
+    """
+    if not request.user.is_teacher:
+        if request.user.is_student:
+            return redirect('student_dashboard')
+        raise PermissionDenied
+
+    teacher = request.user
+
+    courses = (
+        Course.objects
+        .filter(teacher=teacher)
+        .select_related('category')
+        .prefetch_related('quizzes')
+    )
+    course_count = courses.count()
+
+    # ─────────────────────────────────────────────────────────────────────
+    # 1. Teacher Overview Statistics
+    # ─────────────────────────────────────────────────────────────────────
+    total_courses    = course_count
+    published_count  = courses.filter(is_published=True).count()
+    draft_count      = total_courses - published_count
+
+    # Total students across all courses == total Enrollment rows for these
+    # courses (a student enrolled in 3 of the teacher's courses counts 3x,
+    # matching "Total Students Across All Courses" as a sum, not distinct).
+    total_enrollments = Enrollment.objects.filter(course__teacher=teacher).count()
+
+    total_quiz_attempts = QuizAttempt.objects.filter(
+        quiz__course__teacher=teacher
+    ).count()
+
+    total_certificates_issued = CourseCertificate.objects.filter(
+        course__teacher=teacher
+    ).count()
+
+    # Average rating across ALL of this teacher's courses (one aggregate query)
+    rating_agg = Review.objects.filter(course__teacher=teacher).aggregate(
+        avg_rating=Avg('rating'),
+    )
+    average_course_rating = (
+        round(rating_agg['avg_rating'], 1)
+        if rating_agg['avg_rating'] is not None
+        else None
+    )
+
+    # ─────────────────────────────────────────────────────────────────────
+    # 2 & 3. Per-course analytics — Student Growth + Course Performance
+    #         (built together since they iterate the same course list)
+    # ─────────────────────────────────────────────────────────────────────
+    course_performance = []
+    enrollment_counts  = {}   # course.pk -> enrolled_count, reused below for "most/least popular"
+
+    # Pre-fetch certificate counts and review aggregates per course in bulk
+    # (2 queries total) instead of querying inside the loop.
+    cert_counts_qs = (
+        CourseCertificate.objects
+        .filter(course__teacher=teacher)
+        .values('course_id')
+        .annotate(total=Count('id'))
+    )
+    cert_counts_by_course = {row['course_id']: row['total'] for row in cert_counts_qs}
+
+    rating_by_course_qs = (
+        Review.objects
+        .filter(course__teacher=teacher)
+        .values('course_id')
+        .annotate(avg_rating=Avg('rating'))
+    )
+    rating_by_course = {
+        row['course_id']: round(row['avg_rating'], 1)
+        for row in rating_by_course_qs
+    }
+
+    for course in courses:
+        lesson_count   = course.lesson_count
+        enrolled_count = course.enrollment_count
+        quiz_count     = course.quizzes.count()
+
+        enrollment_counts[course.pk] = enrolled_count
+
+        if lesson_count > 0 and enrolled_count > 0:
+            completed_count = (
+                LessonProgress.objects
+                .filter(lesson__course=course, completed=True)
+                .values('student')
+                .annotate(done=Count('id'))
+                .filter(done=lesson_count)
+                .count()
+            )
+            completion_rate = round((completed_count / enrolled_count) * 100)
+        else:
+            completed_count = 0
+            completion_rate = 0
+
+        course_performance.append({
+            'course':            course,
+            'enrolled_count':    enrolled_count,
+            'completed_count':   completed_count,
+            'completion_rate':   completion_rate,
+            'avg_rating':        rating_by_course.get(course.pk),
+            'certificate_count': cert_counts_by_course.get(course.pk, 0),
+            'lesson_count':      lesson_count,
+            'quiz_count':        quiz_count,
+        })
+
+    # Overall completion rate across ALL courses combined (not averaged
+    # per-course — total completions over total enrollments, so a teacher
+    # with one huge course and one tiny course gets a fair blended figure).
+    total_enrolled_sum   = sum(row['enrolled_count'] for row in course_performance)
+    total_completed_sum  = sum(row['completed_count'] for row in course_performance)
+    overall_completion_rate = (
+        round((total_completed_sum / total_enrolled_sum) * 100)
+        if total_enrolled_sum > 0
+        else 0
+    )
+
+    # ── Student Growth Analytics ───────────────────────────────────────────
+    most_popular_course  = None
+    least_popular_course = None
+    if course_performance:
+        most_popular_course  = max(course_performance, key=lambda r: r['enrolled_count'])
+        least_popular_course = min(course_performance, key=lambda r: r['enrolled_count'])
+
+    total_active_students = (
+        Enrollment.objects
+        .filter(course__teacher=teacher)
+        .values('student')
+        .distinct()
+        .count()
+    )
+
+    # ─────────────────────────────────────────────────────────────────────
+    # 4. Quiz Performance Analytics
+    # ─────────────────────────────────────────────────────────────────────
+    quizzes = (
+        Quiz.objects
+        .filter(course__teacher=teacher)
+        .select_related('course')
+    )
+
+    quiz_performance = []
+    for quiz in quizzes:
+        stats = QuizAttempt.objects.filter(quiz=quiz).aggregate(
+            attempt_count=Count('id'),
+            avg_score=Avg('percentage'),
+            highest_score=Max('percentage'),
+            lowest_score=Min('percentage'),
+            pass_count=Count('id', filter=Q(passed=True)),
+        )
+        attempt_count = stats['attempt_count'] or 0
+
+        if attempt_count > 0:
+            pass_rate = round((stats['pass_count'] / attempt_count) * 100)
+            fail_rate = 100 - pass_rate
+        else:
+            pass_rate = 0
+            fail_rate = 0
+
+        quiz_performance.append({
+            'quiz':           quiz,
+            'attempt_count':  attempt_count,
+            'pass_rate':      pass_rate,
+            'fail_rate':      fail_rate,
+            'avg_score':      round(stats['avg_score'], 1) if stats['avg_score'] is not None else None,
+            'highest_score':  stats['highest_score'],
+            'lowest_score':   stats['lowest_score'],
+        })
+
+    # ─────────────────────────────────────────────────────────────────────
+    # 5. Top Performing Students (top 10)
+    # ─────────────────────────────────────────────────────────────────────
+    # Build per-student aggregates across ONLY this teacher's courses:
+    #   - courses_completed : count of courses where the student completed
+    #                         every lesson (computed the same way as the
+    #                         per-course completion check above, but
+    #                         grouped by student instead of by course)
+    #   - certificates_earned
+    #   - avg_quiz_score
+    #
+    # Three small aggregate queries, merged in Python by student ID —
+    # there is no single ORM query that can compute "courses completed"
+    # (a derived, cross-table condition) alongside simple counts, so this
+    # follows the same merge-and-rank pattern already used by
+    # _get_teacher_recent_activity / _get_recent_activity above.
+
+    student_ids = set(
+        Enrollment.objects
+        .filter(course__teacher=teacher)
+        .values_list('student_id', flat=True)
+        .distinct()
+    )
+
+    # Certificates earned per student (only for this teacher's courses)
+    cert_by_student_qs = (
+        CourseCertificate.objects
+        .filter(course__teacher=teacher)
+        .values('student_id')
+        .annotate(total=Count('id'))
+    )
+    certs_by_student = {row['student_id']: row['total'] for row in cert_by_student_qs}
+
+    # Average quiz score per student (only for quizzes in this teacher's courses)
+    quiz_score_by_student_qs = (
+        QuizAttempt.objects
+        .filter(quiz__course__teacher=teacher)
+        .values('student_id')
+        .annotate(avg_score=Avg('percentage'))
+    )
+    quiz_score_by_student = {
+        row['student_id']: round(row['avg_score'], 1)
+        for row in quiz_score_by_student_qs
+    }
+
+    # Courses completed per student: for each (student, course) enrollment
+    # pair in this teacher's courses, check whether completed lessons ==
+    # total lessons. Done with one query per student is too slow at scale,
+    # so instead we pull all relevant LessonProgress rows once and reduce
+    # in Python — bounded by (students × teacher's courses), which is small.
+    enrollments_qs = (
+        Enrollment.objects
+        .filter(course__teacher=teacher)
+        .select_related('course')
+    )
+    lesson_counts_by_course = {
+        cp['course'].pk: cp['lesson_count']
+        for cp in course_performance
+    }
+    completed_lesson_counts = (
+        LessonProgress.objects
+        .filter(lesson__course__teacher=teacher, completed=True)
+        .values('student_id', 'lesson__course_id')
+        .annotate(done=Count('id'))
+    )
+    # Map: (student_id, course_id) -> completed lesson count
+    done_map = {
+        (row['student_id'], row['lesson__course_id']): row['done']
+        for row in completed_lesson_counts
+    }
+
+    courses_completed_by_student = {}
+    for enrollment in enrollments_qs:
+        sid = enrollment.student_id
+        cid = enrollment.course_id
+        total_lessons_for_course = lesson_counts_by_course.get(cid, 0)
+        done_for_pair = done_map.get((sid, cid), 0)
+        if total_lessons_for_course > 0 and done_for_pair == total_lessons_for_course:
+            courses_completed_by_student[sid] = courses_completed_by_student.get(sid, 0) + 1
+
+    # Fetch the actual User objects for all students who have any data
+    relevant_student_ids = student_ids | set(certs_by_student) | set(quiz_score_by_student)
+    students_map = {
+        u.pk: u for u in User.objects.filter(pk__in=relevant_student_ids)
+    }
+
+    top_students = []
+    for sid in relevant_student_ids:
+        student = students_map.get(sid)
+        if student is None:
+            continue
+        top_students.append({
+            'student':            student,
+            'courses_completed':  courses_completed_by_student.get(sid, 0),
+            'certificates_earned': certs_by_student.get(sid, 0),
+            'avg_quiz_score':     quiz_score_by_student.get(sid),
+        })
+
+    # Rank by: courses completed (desc), then certificates (desc), then
+    # average quiz score (desc, treating None as 0 so it sorts last)
+    top_students.sort(
+        key=lambda r: (
+            r['courses_completed'],
+            r['certificates_earned'],
+            r['avg_quiz_score'] or 0,
+        ),
+        reverse=True,
+    )
+    top_students = top_students[:10]
+
+    # ─────────────────────────────────────────────────────────────────────
+    # 6. Recent Activity Feed (5 event types, newest first)
+    # ─────────────────────────────────────────────────────────────────────
+    recent_activity = _get_teacher_recent_activity(teacher, limit=10)
+
+    context = {
+        # 1. Overview statistics
+        'total_courses':             total_courses,
+        'published_count':           published_count,
+        'draft_count':                draft_count,
+        'total_enrollments':          total_enrollments,
+        'total_quiz_attempts':        total_quiz_attempts,
+        'total_certificates_issued':  total_certificates_issued,
+        'average_course_rating':      average_course_rating,
+        'overall_completion_rate':    overall_completion_rate,
+
+        # 2. Student growth analytics
+        'most_popular_course':        most_popular_course,
+        'least_popular_course':       least_popular_course,
+        'total_active_students':      total_active_students,
+
+        # 3. Course performance analytics
+        'course_performance':         course_performance,
+
+        # 4. Quiz performance analytics
+        'quiz_performance':           quiz_performance,
+
+        # 5. Top performing students
+        'top_students':               top_students,
+
+        # 6. Recent activity feed
+        'recent_activity':            recent_activity,
+    }
+    return render(request, 'courses/teacher_analytics.html', context)

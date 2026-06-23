@@ -23,6 +23,8 @@
       <li><a href="{% url 'course_list' %}"><span class="nav-icon">📚</span> View Courses</a></li>
       <li><a href="{% url 'teacher_quiz_list' %}"><span class="nav-icon">📝</span> My Quizzes</a></li>
       <li><a href="{% url 'teacher_attempts' %}"><span class="nav-icon">📊</span> Quiz Attempts</a></li>
+      <li><a href="{% url 'teacher_reviews' %}"><span class="nav-icon">⭐</span> Course Reviews</a></li>
+      <li><a href="{% url 'teacher_analytics' %}"><span class="nav-icon">📈</span> Analytics</a></li>
       <li><a href="{% url 'profile' %}"><span class="nav-icon">👤</span> My Profile</a></li>
       <li><a href="{% url 'logout' %}"><span class="nav-icon">🚪</span> Sign Out</a></li>
     </ul>
@@ -60,8 +62,42 @@
       </div>
     </div>
 
+    <!-- ── Phase 4B.1: Analytics Summary Teaser ── -->
+    <div style="background:linear-gradient(135deg,var(--primary-l),var(--surface));border:1.5px solid rgba(26,107,94,.15);border-radius:var(--radius);padding:22px;margin-bottom:8px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:16px;">
+        <div>
+          <h3 style="margin:0;font-size:1.1rem;">📈 Analytics Summary</h3>
+          <p style="font-size:.85rem;color:var(--text-3);margin-top:2px;">A quick look — see the full breakdown for course, quiz, and student insights.</p>
+        </div>
+        <a href="{% url 'teacher_analytics' %}" class="btn btn-primary btn-sm">
+          View Full Analytics →
+        </a>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:14px;">
+        <div style="background:var(--surface);border-radius:var(--radius-sm);padding:14px;text-align:center;">
+          <div style="font-size:1.3rem;font-weight:700;color:var(--primary);font-family:var(--font-display);">
+            {{ total_quiz_attempts }}
+          </div>
+          <div style="font-size:.75rem;color:var(--text-3);margin-top:2px;">Quiz Attempts</div>
+        </div>
+        <div style="background:var(--surface);border-radius:var(--radius-sm);padding:14px;text-align:center;">
+          <div style="font-size:1.3rem;font-weight:700;color:var(--gold);font-family:var(--font-display);">
+            {% if average_course_rating %}{{ average_course_rating }}★{% else %}—{% endif %}
+          </div>
+          <div style="font-size:.75rem;color:var(--text-3);margin-top:2px;">Avg Rating</div>
+        </div>
+        <div style="background:var(--surface);border-radius:var(--radius-sm);padding:14px;text-align:center;">
+          <div style="font-size:1.3rem;font-weight:700;color:var(--success);font-family:var(--font-display);">
+            {{ total_certificates_issued }}
+          </div>
+          <div style="font-size:.75rem;color:var(--text-3);margin-top:2px;">Certificates</div>
+        </div>
+      </div>
+    </div>
+
     <!-- Courses List -->
-    <div class="action-bar">
+    <div class="action-bar" style="margin-top:28px;">
       <h3>My Courses</h3>
       <a href="{% url 'course_create' %}" class="btn btn-primary btn-sm">+ New Course</a>
     </div>

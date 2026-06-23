@@ -1,0 +1,384 @@
+{% extends 'base.html' %}
+{% block title %}Teacher Analytics{% endblock %}
+
+{% block content %}
+<div class="dashboard-layout">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sidebar-user">
+      <div class="sidebar-avatar">
+        {% if user.profile_picture %}
+          <img src="{{ user.profile_picture.url }}" alt="{{ user.get_full_name }}">
+        {% else %}
+          {{ user.first_name|first|upper }}{{ user.last_name|first|upper }}
+        {% endif %}
+      </div>
+      <div class="sidebar-name">{{ user.get_full_name|default:user.username }}</div>
+      <div class="sidebar-role">{{ user.get_role_display }}</div>
+    </div>
+    <ul class="sidebar-nav">
+      <li><a href="{% url 'teacher_dashboard' %}"><span class="nav-icon">🏠</span> Dashboard</a></li>
+      <li><a href="{% url 'course_create' %}"><span class="nav-icon">➕</span> New Course</a></li>
+      <li><a href="{% url 'course_list' %}"><span class="nav-icon">📚</span> View Courses</a></li>
+      <li><a href="{% url 'teacher_quiz_list' %}"><span class="nav-icon">📝</span> My Quizzes</a></li>
+      <li><a href="{% url 'teacher_attempts' %}"><span class="nav-icon">📊</span> Quiz Attempts</a></li>
+      <li><a href="{% url 'teacher_reviews' %}"><span class="nav-icon">⭐</span> Course Reviews</a></li>
+      <li><a href="{% url 'teacher_analytics' %}" class="active"><span class="nav-icon">📈</span> Analytics</a></li>
+      <li><a href="{% url 'profile' %}"><span class="nav-icon">👤</span> My Profile</a></li>
+      <li><a href="{% url 'logout' %}"><span class="nav-icon">🚪</span> Sign Out</a></li>
+    </ul>
+  </aside>
+
+  <!-- ── Main ── -->
+  <div class="dashboard-main">
+
+    <div class="dashboard-header">
+      <h1>Analytics Center</h1>
+      <p>A complete picture of your courses, students, and quizzes.</p>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         1. TEACHER OVERVIEW STATISTICS
+    ═══════════════════════════════════════════════════════════════ -->
+    <div class="stats-row">
+      <div class="stat-card">
+        <div class="stat-card-icon" style="background:var(--primary-l);color:var(--primary);">📚</div>
+        <div>
+          <div class="stat-card-num">{{ total_courses }}</div>
+          <div class="stat-card-label">Total Courses</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-icon" style="background:var(--gold-l);color:var(--gold);">✅</div>
+        <div>
+          <div class="stat-card-num">{{ published_count }}</div>
+          <div class="stat-card-label">Published</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-icon" style="background:#fdecea;color:var(--danger);">📝</div>
+        <div>
+          <div class="stat-card-num">{{ draft_count }}</div>
+          <div class="stat-card-label">Drafts</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-icon" style="background:var(--primary-l);color:var(--primary);">👥</div>
+        <div>
+          <div class="stat-card-num">{{ total_enrollments }}</div>
+          <div class="stat-card-label">Total Students (all courses)</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-icon" style="background:var(--gold-l);color:var(--gold);">📝</div>
+        <div>
+          <div class="stat-card-num">{{ total_quiz_attempts }}</div>
+          <div class="stat-card-label">Quiz Attempts</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-icon" style="background:#e8f8ef;color:var(--success);">🏆</div>
+        <div>
+          <div class="stat-card-num">{{ total_certificates_issued }}</div>
+          <div class="stat-card-label">Certificates Issued</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-icon" style="background:var(--gold-l);color:var(--gold);">⭐</div>
+        <div>
+          <div class="stat-card-num">
+            {% if average_course_rating %}{{ average_course_rating }}{% else %}—{% endif %}
+          </div>
+          <div class="stat-card-label">Average Course Rating</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-card-icon" style="background:#e8f8ef;color:var(--success);">📈</div>
+        <div>
+          <div class="stat-card-num">{{ overall_completion_rate }}%</div>
+          <div class="stat-card-label">Overall Completion Rate</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         2. STUDENT GROWTH ANALYTICS
+    ═══════════════════════════════════════════════════════════════ -->
+    <div class="action-bar" style="margin-top:36px;">
+      <h3>Student Growth</h3>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:28px;">
+
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:18px;">
+        <div style="font-size:.78rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;">Total Active Students</div>
+        <div style="font-size:1.6rem;font-weight:700;color:var(--text);font-family:var(--font-display);">
+          {{ total_active_students }}
+        </div>
+        <p style="font-size:.8rem;color:var(--text-3);margin-top:4px;">Unique students enrolled across all your courses</p>
+      </div>
+
+      <div style="background:var(--surface);border:1.5px solid #b1dfbb;border-radius:var(--radius);padding:18px;">
+        <div style="display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--success);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;font-weight:700;">
+          🔥 Most Popular Course
+        </div>
+        {% if most_popular_course %}
+          <div style="font-size:1.05rem;font-weight:700;color:var(--text);margin-bottom:2px;">
+            {{ most_popular_course.course.title }}
+          </div>
+          <p style="font-size:.82rem;color:var(--text-3);">{{ most_popular_course.enrolled_count }} students enrolled</p>
+        {% else %}
+          <p style="font-size:.85rem;color:var(--text-3);">No courses yet</p>
+        {% endif %}
+      </div>
+
+      <div style="background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);padding:18px;">
+        <div style="display:flex;align-items:center;gap:6px;font-size:.78rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px;font-weight:700;">
+          📉 Least Popular Course
+        </div>
+        {% if least_popular_course %}
+          <div style="font-size:1.05rem;font-weight:700;color:var(--text);margin-bottom:2px;">
+            {{ least_popular_course.course.title }}
+          </div>
+          <p style="font-size:.82rem;color:var(--text-3);">{{ least_popular_course.enrolled_count }} student{{ least_popular_course.enrolled_count|pluralize }} enrolled</p>
+        {% else %}
+          <p style="font-size:.85rem;color:var(--text-3);">No courses yet</p>
+        {% endif %}
+      </div>
+
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         3. COURSE PERFORMANCE ANALYTICS
+    ═══════════════════════════════════════════════════════════════ -->
+    <div class="action-bar" style="margin-top:8px;">
+      <h3>Course Performance</h3>
+    </div>
+
+    {% if course_performance %}
+      <div class="table-wrap" style="margin-bottom:28px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Course</th>
+              <th>Enrolled</th>
+              <th>Completed</th>
+              <th>Completion Rate</th>
+              <th>Avg Rating</th>
+              <th>Certificates</th>
+              <th>Lessons</th>
+              <th>Quizzes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in course_performance %}
+              <tr>
+                <td>
+                  <a href="{% url 'course_detail' row.course.slug %}"
+                     style="font-weight:600;font-size:.9rem;color:var(--primary);">
+                    {{ row.course.title }}
+                  </a>
+                </td>
+                <td><span class="badge badge-gray">👥 {{ row.enrolled_count }}</span></td>
+                <td><span class="badge badge-green">🎓 {{ row.completed_count }}</span></td>
+                <td>
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <div style="width:70px;height:7px;background:var(--surface-2);border-radius:4px;overflow:hidden;flex-shrink:0;">
+                      <div style="height:100%;width:{{ row.completion_rate }}%;background:{% if row.completion_rate == 100 %}var(--success){% elif row.completion_rate >= 50 %}var(--primary){% else %}var(--gold){% endif %};border-radius:4px;"></div>
+                    </div>
+                    <span style="font-weight:700;font-size:.84rem;">{{ row.completion_rate }}%</span>
+                  </div>
+                </td>
+                <td>
+                  {% if row.avg_rating %}
+                    <span style="color:var(--gold);">★</span> {{ row.avg_rating }}
+                  {% else %}
+                    <span style="color:var(--text-3);">—</span>
+                  {% endif %}
+                </td>
+                <td><span class="badge badge-gold">🏆 {{ row.certificate_count }}</span></td>
+                <td style="color:var(--text-3);">{{ row.lesson_count }}</td>
+                <td style="color:var(--text-3);">{{ row.quiz_count }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:28px;">
+        <div class="icon">📚</div>
+        <h3>No courses yet</h3>
+        <p>Create a course to start seeing performance data.</p>
+      </div>
+    {% endif %}
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         4. QUIZ PERFORMANCE ANALYTICS
+    ═══════════════════════════════════════════════════════════════ -->
+    <div class="action-bar">
+      <h3>Quiz Performance</h3>
+    </div>
+
+    {% if quiz_performance %}
+      <div class="table-wrap" style="margin-bottom:28px;">
+        <table>
+          <thead>
+            <tr>
+              <th>Quiz</th>
+              <th>Course</th>
+              <th>Attempts</th>
+              <th>Pass Rate</th>
+              <th>Fail Rate</th>
+              <th>Avg Score</th>
+              <th>Highest</th>
+              <th>Lowest</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in quiz_performance %}
+              <tr>
+                <td style="font-weight:600;font-size:.88rem;color:var(--text);">{{ row.quiz.title }}</td>
+                <td style="font-size:.85rem;color:var(--text-3);">{{ row.quiz.course.title }}</td>
+                <td><span class="badge badge-gray">{{ row.attempt_count }}</span></td>
+                <td>
+                  {% if row.attempt_count > 0 %}
+                    <span class="badge badge-green">{{ row.pass_rate }}%</span>
+                  {% else %}
+                    <span style="color:var(--text-3);">—</span>
+                  {% endif %}
+                </td>
+                <td>
+                  {% if row.attempt_count > 0 %}
+                    <span class="badge badge-red">{{ row.fail_rate }}%</span>
+                  {% else %}
+                    <span style="color:var(--text-3);">—</span>
+                  {% endif %}
+                </td>
+                <td style="font-weight:600;">
+                  {% if row.avg_score is not None %}{{ row.avg_score }}%{% else %}—{% endif %}
+                </td>
+                <td style="color:var(--success);">
+                  {% if row.highest_score is not None %}{{ row.highest_score }}%{% else %}—{% endif %}
+                </td>
+                <td style="color:var(--danger);">
+                  {% if row.lowest_score is not None %}{{ row.lowest_score }}%{% else %}—{% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:28px;">
+        <div class="icon">📝</div>
+        <h3>No quizzes yet</h3>
+        <p>Create quizzes for your courses to see performance data here.</p>
+      </div>
+    {% endif %}
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         5. TOP PERFORMING STUDENTS
+    ═══════════════════════════════════════════════════════════════ -->
+    <div class="action-bar">
+      <h3>Top Performing Students</h3>
+    </div>
+
+    {% if top_students %}
+      <div class="table-wrap" style="margin-bottom:28px;">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Student</th>
+              <th>Courses Completed</th>
+              <th>Certificates Earned</th>
+              <th>Average Quiz Score</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in top_students %}
+              <tr>
+                <td style="color:var(--text-3);font-weight:700;">{{ forloop.counter }}</td>
+                <td>
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <div class="teacher-avatar" style="width:30px;height:30px;font-size:.75rem;flex-shrink:0;">
+                      {% if row.student.profile_picture %}
+                        <img src="{{ row.student.profile_picture.url }}" alt="">
+                      {% else %}
+                        {{ row.student.first_name|first|upper }}{{ row.student.last_name|first|upper }}
+                      {% endif %}
+                    </div>
+                    <span style="font-weight:600;font-size:.88rem;color:var(--text);">
+                      {{ row.student.get_full_name|default:row.student.username }}
+                    </span>
+                  </div>
+                </td>
+                <td><span class="badge badge-green">🎓 {{ row.courses_completed }}</span></td>
+                <td><span class="badge badge-gold">🏆 {{ row.certificates_earned }}</span></td>
+                <td>
+                  {% if row.avg_quiz_score is not None %}
+                    <span style="font-weight:700;">{{ row.avg_quiz_score }}%</span>
+                  {% else %}
+                    <span style="color:var(--text-3);">—</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="empty-state" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:28px;">
+        <div class="icon">🏅</div>
+        <h3>No student activity yet</h3>
+        <p>Once students enroll and engage with your courses, top performers will appear here.</p>
+      </div>
+    {% endif %}
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         6. RECENT ACTIVITY FEED
+    ═══════════════════════════════════════════════════════════════ -->
+    <div class="action-bar">
+      <h3>Recent Activity</h3>
+    </div>
+
+    {% if recent_activity %}
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:28px;">
+        {% for activity in recent_activity %}
+          <a href="{{ activity.url }}"
+             style="display:flex;align-items:center;gap:14px;padding:13px 20px;text-decoration:none;color:inherit;{% if not forloop.last %}border-bottom:1px solid var(--border);{% endif %}transition:background var(--transition);"
+             onmouseover="this.style.background='var(--surface-2)'"
+             onmouseout="this.style.background='transparent'">
+
+            <div style="width:34px;height:34px;border-radius:50%;background:{% if activity.type == 'lesson' %}#e8f8ef{% elif activity.type == 'quiz_pass' %}var(--gold-l){% elif activity.type == 'quiz_fail' %}#fdecea{% elif activity.type == 'certificate' %}var(--gold-l){% elif activity.type == 'review' %}var(--gold-l){% else %}var(--primary-l){% endif %};display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;">
+              {{ activity.icon }}
+            </div>
+
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:.9rem;color:var(--text);font-weight:500;">
+                {{ activity.text }}
+              </div>
+              <div style="font-size:.78rem;color:var(--text-3);margin-top:1px;">
+                {{ activity.course.title }}
+              </div>
+            </div>
+
+            <div style="font-size:.78rem;color:var(--text-3);white-space:nowrap;flex-shrink:0;">
+              {{ activity.timestamp|date:"M d, Y" }}
+            </div>
+
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);">
+        <div class="icon">📋</div>
+        <h3>No activity yet</h3>
+        <p>Activity from your students will appear here as they enroll, learn, and earn certificates.</p>
+      </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

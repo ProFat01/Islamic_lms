@@ -88,6 +88,75 @@
       {% endif %}
     </div>
 
+    <!-- ── Phase 4A: Certificate Summary ── -->
+    <div style="background:var(--surface);border:1.5px solid {% if certificate_count > 0 %}#e8d9a8{% else %}var(--border){% endif %};border-radius:var(--radius);padding:18px 22px;margin-bottom:28px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;">
+      <div style="width:48px;height:48px;border-radius:10px;background:var(--gold-l);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;">
+        🏆
+      </div>
+      <div style="flex:1;min-width:200px;">
+        <div style="font-size:.78rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;">Certificate Summary</div>
+        {% if certificate_count > 0 %}
+          <div style="font-weight:700;color:var(--text);">
+            {{ certificate_count }} certificate{{ certificate_count|pluralize }} earned
+          </div>
+          <div style="font-size:.85rem;color:var(--text-3);margin-top:2px;">
+            Latest: <strong style="color:var(--gold);">{{ latest_certificate.course.title }}</strong>
+            on {{ latest_certificate.issued_at|date:"M d, Y" }}
+          </div>
+        {% else %}
+          <div style="font-weight:600;color:var(--text-3);">
+            No certificates earned yet — complete a course to earn one.
+          </div>
+        {% endif %}
+      </div>
+      {% if certificate_count > 0 %}
+        <a href="{% url 'certificate_list' %}" class="btn btn-gold btn-sm">
+          View Certificates →
+        </a>
+      {% endif %}
+    </div>
+
+    <!-- ── Phase 4A: Recent Activity ── -->
+    <div class="action-bar">
+      <h3>Recent Activity</h3>
+    </div>
+
+    {% if recent_activity %}
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:28px;">
+        {% for activity in recent_activity %}
+          <a href="{{ activity.url }}"
+             style="display:flex;align-items:center;gap:14px;padding:13px 20px;text-decoration:none;color:inherit;{% if not forloop.last %}border-bottom:1px solid var(--border);{% endif %}transition:background var(--transition);"
+             onmouseover="this.style.background='var(--surface-2)'"
+             onmouseout="this.style.background='transparent'">
+
+            <div style="width:34px;height:34px;border-radius:50%;background:{% if activity.type == 'lesson' %}#e8f8ef{% elif activity.type == 'quiz_pass' %}var(--gold-l){% elif activity.type == 'quiz_fail' %}#fdecea{% elif activity.type == 'certificate' %}var(--gold-l){% else %}var(--primary-l){% endif %};display:flex;align-items:center;justify-content:center;font-size:1rem;flex-shrink:0;">
+              {{ activity.icon }}
+            </div>
+
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:.9rem;color:var(--text);font-weight:500;">
+                {{ activity.text }}
+              </div>
+              <div style="font-size:.78rem;color:var(--text-3);margin-top:1px;">
+                {{ activity.course.title }}
+              </div>
+            </div>
+
+            <div style="font-size:.78rem;color:var(--text-3);white-space:nowrap;flex-shrink:0;">
+              {{ activity.timestamp|date:"M d, Y" }}
+            </div>
+
+          </a>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:28px;">
+        <div class="icon">📋</div>
+        <h3>No activity yet</h3>
+        <p>Enroll in a course and start learning to see your activity here.</p>
+      </div>
+    {% endif %}
+
     <!-- ── My Courses with Progress (Phase 3D) ── -->
     <div class="action-bar">
       <h3>My Learning Progress</h3>
@@ -178,6 +247,87 @@
         <h3>No courses yet</h3>
         <p>Enroll in your first Islamic course and start learning today.</p>
         <a href="{% url 'course_list' %}" class="btn btn-primary" style="margin-top:16px;">Browse Courses</a>
+      </div>
+    {% endif %}
+
+    <!-- ── Phase 4C: Recommended For You ── -->
+    <div class="action-bar" style="margin-top:36px;">
+      <h3>Recommended For You</h3>
+      <a href="{% url 'course_list' %}" class="btn btn-outline btn-sm">Browse All Courses</a>
+    </div>
+
+    {% if recommended_courses %}
+      <div class="grid-3">
+        {% for course in recommended_courses %}
+          <div class="card course-card">
+            {% if course.thumbnail %}
+              <img src="{{ course.thumbnail.url }}" alt="{{ course.title }}" class="course-card-thumb">
+            {% else %}
+              <div class="course-card-thumb-placeholder">📖</div>
+            {% endif %}
+            <div class="course-card-body">
+              <div class="flex gap-1" style="margin-bottom:6px;flex-wrap:wrap;">
+                <span class="badge badge-teal">
+                  <span class="level-indicator level-{{ course.level }}"></span>
+                  {{ course.get_level_display }}
+                </span>
+                {% if course.category %}
+                  <span class="badge badge-gold">{{ course.category.name }}</span>
+                {% endif %}
+              </div>
+
+              <h3 class="course-card-title">{{ course.title }}</h3>
+
+              <!-- Average rating -->
+              {% if course.review_count > 0 %}
+                <div style="display:flex;align-items:center;gap:5px;margin:4px 0 8px;">
+                  <span style="color:var(--gold);font-size:.85rem;">
+                    {% for i in "12345" %}
+                      {% if forloop.counter <= course.avg_rating %}★{% else %}☆{% endif %}
+                    {% endfor %}
+                  </span>
+                  <span style="font-size:.78rem;color:var(--text-3);">
+                    {{ course.avg_rating|floatformat:1 }} ({{ course.review_count }})
+                  </span>
+                </div>
+              {% endif %}
+
+              <p class="course-card-desc">{{ course.short_description|truncatewords:18 }}</p>
+
+              <!-- Teacher -->
+              <div class="flex items-center gap-1 mt-2" style="margin-top:10px;">
+                <div class="teacher-avatar" style="width:28px;height:28px;font-size:.7rem;flex-shrink:0;">
+                  {% if course.teacher.profile_picture %}
+                    <img src="{{ course.teacher.profile_picture.url }}" alt="">
+                  {% else %}
+                    {{ course.teacher.first_name|first|upper }}
+                  {% endif %}
+                </div>
+                <span style="font-size:.82rem;color:var(--text-3);">
+                  {{ course.teacher.get_full_name|default:course.teacher.username }}
+                </span>
+              </div>
+
+              <div class="course-card-meta">
+                <span class="badge badge-gray">⏱ {{ course.duration }}</span>
+                <span class="badge badge-gray">📚 {{ course.lesson_count }} lessons</span>
+              </div>
+
+              <form method="post" action="{% url 'enroll' course.slug %}" style="margin-top:12px;">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-gold btn-sm" style="width:100%;justify-content:center;">
+                  Enroll Now →
+                </button>
+              </form>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="empty-state" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);">
+        <div class="icon">✨</div>
+        <h3>No recommendations available yet</h3>
+        <p>Continue learning to receive personalized recommendations.</p>
       </div>
     {% endif %}
 

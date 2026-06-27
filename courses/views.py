@@ -1,8 +1,9 @@
 """
 courses/views.py
 
-All existing Phase 1/2/3B/3D/3E/4A/4B views are preserved exactly.
-Phase 4B.1 (Advanced Teacher Analytics Dashboard) additions are clearly marked.
+All existing Phase 1/2/3B/3D/3E/4A/4B/4B.1 views are preserved exactly.
+Phase 4C (Course Recommendation Engine) wires CourseRecommendationService
+into student_dashboard — all scoring logic lives in courses/services.py.
 """
 
 from django.contrib import messages
@@ -18,6 +19,7 @@ from assessments.models import Quiz, QuizAttempt
 
 from .forms import CourseForm, LessonForm, ReviewForm
 from .models import Category, Course, CourseCertificate, Enrollment, Lesson, LessonProgress, Review
+from .services import CourseRecommendationService
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -650,7 +652,8 @@ def _get_recent_activity(student, limit=10):
 @login_required
 def student_dashboard(request):
     """
-    Student dashboard — learning analytics center (Phase 4A).
+    Student dashboard — learning analytics center (Phase 4A) with
+    personalised recommendations (Phase 4C).
 
     Adds on top of existing Phase 3D/3E data:
       - total_completed_lessons : sum across ALL enrolled courses
@@ -660,6 +663,13 @@ def student_dashboard(request):
       - average_quiz_score      : average percentage across all attempts,
                                    rounded to nearest whole number
       - recent_certificates     : latest 5 CourseCertificate rows
+      - recommended_courses     : up to 6 personalised course recommendations,
+                                   computed entirely by
+                                   CourseRecommendationService.get_recommendations()
+                                   (Phase 4C) — this view does NOT contain any
+                                   scoring logic itself, per the architecture
+                                   requirement that all recommendation rules
+                                   live in courses/services.py.
 
     All existing context keys (enrollments, available_quizzes,
     recent_attempts, progress_map, completed_courses, certificate_count)
@@ -746,6 +756,14 @@ def student_dashboard(request):
     # (recent_certificates is already ordered -issued_at, so first() is free)
     latest_certificate = recent_certificates[0] if recent_certificates else None
 
+    # Phase 4C: personalised course recommendations.
+    # All scoring logic lives in CourseRecommendationService — this view
+    # only calls it and passes the result into the template context.
+    recommended_courses = CourseRecommendationService.get_recommendations(
+        student=request.user,
+        limit=6,
+    )
+
     context = {
         'enrollments':              enrollments,
         'available_quizzes':        available_quizzes,
@@ -760,6 +778,8 @@ def student_dashboard(request):
         'quiz_attempt_count':       quiz_attempt_count,
         'average_quiz_score':       average_quiz_score,
         'recent_activity':          recent_activity,
+        # Phase 4C addition
+        'recommended_courses':      recommended_courses,
     }
     return render(request, 'courses/student_dashboard.html', context)
 

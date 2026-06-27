@@ -1,5 +1,5 @@
 """
-courses/services.py
+courses/services/recommendation.py
 
 Phase 4C — Intelligent Course Recommendation Engine (Foundation)
 
@@ -21,8 +21,13 @@ from collections import defaultdict
 
 from django.db.models import Avg, Count, Q
 
-from .models import Category, Course, Enrollment, LessonProgress, Review
-
+from courses.models import (
+    Category,
+    Course,
+    Enrollment,
+    LessonProgress,
+    Review,
+)
 
 class CourseRecommendationService:
     """

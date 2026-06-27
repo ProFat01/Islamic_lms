@@ -1,0 +1,192 @@
+{% extends 'base.html' %}
+{% block title %}AI Learning Advisor{% endblock %}
+
+{% block content %}
+<div class="dashboard-layout">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sidebar-user">
+      <div class="sidebar-avatar">
+        {% if user.profile_picture %}
+          <img src="{{ user.profile_picture.url }}" alt="{{ user.get_full_name }}">
+        {% else %}
+          {{ user.first_name|first|upper }}{{ user.last_name|first|upper }}
+        {% endif %}
+      </div>
+      <div class="sidebar-name">{{ user.get_full_name|default:user.username }}</div>
+      <div class="sidebar-role">{{ user.get_role_display }}</div>
+    </div>
+    <ul class="sidebar-nav">
+      <li><a href="{% url 'student_dashboard' %}"><span class="nav-icon">🏠</span> Dashboard</a></li>
+      <li><a href="{% url 'course_list' %}"><span class="nav-icon">📚</span> Browse Courses</a></li>
+      <li><a href="{% url 'certificate_list' %}"><span class="nav-icon">🎓</span> Certificates</a></li>
+      <li><a href="{% url 'advisor_dashboard' %}" class="active"><span class="nav-icon">🧭</span> AI Advisor</a></li>
+      <li><a href="{% url 'profile' %}"><span class="nav-icon">👤</span> My Profile</a></li>
+      <li><a href="{% url 'logout' %}"><span class="nav-icon">🚪</span> Sign Out</a></li>
+    </ul>
+  </aside>
+
+  <!-- ── Main ── -->
+  <div class="dashboard-main">
+
+    <div class="dashboard-header">
+      <h1>🧭 AI Learning Advisor</h1>
+      <p>Personalized study advice based on your learning activity.</p>
+    </div>
+
+    {% if not advice.has_learning_history %}
+
+      <!-- ── Empty state: no learning history yet ── -->
+      <div class="empty-state"
+           style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);">
+        <div class="icon">✨</div>
+        <h3>We need a little more learning activity before generating personalized advice.</h3>
+        <p>Enroll in a course, complete a few lessons, or take a quiz — your advisor will have something to say soon.</p>
+        <a href="{% url 'course_list' %}" class="btn btn-primary" style="margin-top:16px;">
+          Browse Courses
+        </a>
+      </div>
+
+    {% else %}
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           1. LEARNING SUMMARY
+      ═══════════════════════════════════════════════════════════════ -->
+      <div style="background:linear-gradient(135deg,var(--primary-l),var(--surface));border:1.5px solid rgba(26,107,94,.15);border-radius:var(--radius);padding:22px;margin-bottom:28px;display:flex;align-items:flex-start;gap:16px;">
+        <div style="width:48px;height:48px;border-radius:10px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;">
+          🧭
+        </div>
+        <div>
+          <div style="font-size:.78rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px;">Learning Summary</div>
+          <p style="font-size:.98rem;color:var(--text);line-height:1.7;margin:0;">
+            {{ advice.summary }}
+          </p>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;margin-bottom:28px;">
+
+        <!-- ═══════════════════════════════════════════════════════════
+             2. STRENGTHS
+        ═══════════════════════════════════════════════════════════ -->
+        <div style="background:var(--surface);border:1.5px solid #b1dfbb;border-radius:var(--radius);padding:20px;">
+          <h3 style="font-size:1rem;display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+            💪 Strengths
+          </h3>
+          {% if advice.strengths %}
+            <ul style="list-style:none;display:flex;flex-direction:column;gap:10px;">
+              {% for item in advice.strengths %}
+                <li style="display:flex;align-items:flex-start;gap:8px;font-size:.9rem;color:var(--text-2);line-height:1.6;">
+                  <span style="color:var(--success);flex-shrink:0;">✓</span>
+                  <span>{{ item }}</span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p style="font-size:.88rem;color:var(--text-3);margin:0;">
+              Keep learning — your strengths will appear here as you build a track record.
+            </p>
+          {% endif %}
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════
+             3. AREAS FOR IMPROVEMENT
+        ═══════════════════════════════════════════════════════════ -->
+        <div style="background:var(--surface);border:1.5px solid var(--gold);border-radius:var(--radius);padding:20px;">
+          <h3 style="font-size:1rem;display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+            📈 Areas For Improvement
+          </h3>
+          {% if advice.improvements %}
+            <ul style="list-style:none;display:flex;flex-direction:column;gap:10px;">
+              {% for item in advice.improvements %}
+                <li style="display:flex;align-items:flex-start;gap:8px;font-size:.9rem;color:var(--text-2);line-height:1.6;">
+                  <span style="color:var(--gold);flex-shrink:0;">!</span>
+                  <span>{{ item }}</span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p style="font-size:.88rem;color:var(--text-3);margin:0;">
+              No specific concerns right now — keep up the steady progress.
+            </p>
+          {% endif %}
+        </div>
+
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           4. RECOMMENDED NEXT STEPS
+      ═══════════════════════════════════════════════════════════════ -->
+      <div class="action-bar">
+        <h3>Recommended Next Steps</h3>
+      </div>
+
+      {% if advice.recommended_next_steps %}
+        <div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-bottom:28px;">
+          {% for step in advice.recommended_next_steps %}
+            <div style="display:flex;align-items:center;gap:14px;padding:14px 20px;{% if not forloop.last %}border-bottom:1px solid var(--border);{% endif %}">
+              <div style="width:30px;height:30px;border-radius:50%;background:var(--primary-l);color:var(--primary);display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:700;flex-shrink:0;">
+                {{ forloop.counter }}
+              </div>
+              <p style="font-size:.92rem;color:var(--text);margin:0;line-height:1.5;">{{ step }}</p>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty-state" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:28px;padding:32px;">
+          <p style="font-size:.9rem;color:var(--text-3);margin:0;">No specific next steps right now — you're on a great path.</p>
+        </div>
+      {% endif %}
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           5. RECOMMENDED COURSES
+      ═══════════════════════════════════════════════════════════════ -->
+      <div class="action-bar">
+        <h3>Recommended Courses</h3>
+        <a href="{% url 'course_list' %}" class="btn btn-outline btn-sm">Browse All Courses</a>
+      </div>
+
+      {% if advice.recommended_courses %}
+        <div class="grid-3">
+          {% for course in advice.recommended_courses %}
+            <div class="card course-card">
+              {% if course.thumbnail %}
+                <img src="{{ course.thumbnail.url }}" alt="{{ course.title }}" class="course-card-thumb">
+              {% else %}
+                <div class="course-card-thumb-placeholder">📖</div>
+              {% endif %}
+              <div class="course-card-body">
+                <div class="flex gap-1" style="margin-bottom:6px;flex-wrap:wrap;">
+                  <span class="badge badge-teal">
+                    <span class="level-indicator level-{{ course.level }}"></span>
+                    {{ course.get_level_display }}
+                  </span>
+                  {% if course.category %}
+                    <span class="badge badge-gold">{{ course.category.name }}</span>
+                  {% endif %}
+                </div>
+                <h3 class="course-card-title">{{ course.title }}</h3>
+                <p class="course-card-desc">{{ course.short_description|truncatewords:16 }}</p>
+                <a href="{% url 'course_detail' course.slug %}"
+                   class="btn btn-outline btn-sm"
+                   style="width:100%;justify-content:center;margin-top:12px;">
+                  View Course →
+                </a>
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="empty-state" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);">
+          <div class="icon">📚</div>
+          <h3>No course recommendations available yet.</h3>
+          <p>Keep learning and we'll surface courses tailored to you.</p>
+        </div>
+      {% endif %}
+
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

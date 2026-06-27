@@ -1,9 +1,9 @@
 """
 courses/views.py
 
-All existing Phase 1/2/3B/3D/3E/4A/4B/4B.1 views are preserved exactly.
-Phase 4C (Course Recommendation Engine) wires CourseRecommendationService
-into student_dashboard — all scoring logic lives in courses/services.py.
+All existing Phase 1/2/3B/3D/3E/4A/4B/4B.1/4C views are preserved exactly.
+Phase 5A (AI Learning Advisor) adds advisor_dashboard — all analysis logic
+lives in courses/services/ai_learning_advisor.py, this view only calls it.
 """
 
 from django.contrib import messages
@@ -19,7 +19,7 @@ from assessments.models import Quiz, QuizAttempt
 
 from .forms import CourseForm, LessonForm, ReviewForm
 from .models import Category, Course, CourseCertificate, Enrollment, Lesson, LessonProgress, Review
-from .services import CourseRecommendationService
+from .services import AILearningAdvisorService, CourseRecommendationService
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1776,3 +1776,35 @@ def teacher_analytics(request):
         'recent_activity':            recent_activity,
     }
     return render(request, 'courses/teacher_analytics.html', context)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 5A — AI Learning Advisor
+# ─────────────────────────────────────────────────────────────────────────────
+
+@login_required
+def advisor_dashboard(request):
+    """
+    AI Learning Advisor page — /courses/advisor/
+
+    Security: @login_required + explicit role check.
+      - Students: full access.
+      - Teachers: PermissionDenied (this page analyses a *student's*
+        learning history; it has no meaning for a teacher account).
+      - Anonymous: redirected to login by @login_required.
+
+    All analysis logic lives in AILearningAdvisorService — this view does
+    nothing but call get_advice() and render the result, exactly mirroring
+    the existing architecture of CourseRecommendationService (Phase 4C).
+    """
+    if not request.user.is_student:
+        if request.user.is_teacher:
+            raise PermissionDenied
+        return redirect('home')
+
+    advice = AILearningAdvisorService().get_advice(request.user)
+
+    context = {
+        'advice': advice,
+    }
+    return render(request, 'courses/advisor_dashboard.html', context)

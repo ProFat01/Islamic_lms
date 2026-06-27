@@ -116,6 +116,25 @@
       {% endif %}
     </div>
 
+    <!-- ── Phase 5A: AI Learning Advisor ── -->
+    <div style="background:var(--surface);border:1.5px solid rgba(26,107,94,.2);border-radius:var(--radius);padding:18px 22px;margin-bottom:28px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;">
+      <div style="width:48px;height:48px;border-radius:10px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;">
+        🧭
+      </div>
+      <div style="flex:1;min-width:200px;">
+        <div style="font-size:.78rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;">AI Learning Advisor</div>
+        <div style="font-weight:700;color:var(--text);">
+          Get personalized study advice
+        </div>
+        <div style="font-size:.85rem;color:var(--text-3);margin-top:2px;">
+          Based on your lessons, quizzes, certificates, and reviews.
+        </div>
+      </div>
+      <a href="{% url 'advisor_dashboard' %}" class="btn btn-primary btn-sm">
+        Get Advice →
+      </a>
+    </div>
+
     <!-- ── Phase 4A: Recent Activity ── -->
     <div class="action-bar">
       <h3>Recent Activity</h3>

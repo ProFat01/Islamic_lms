@@ -8,26 +8,20 @@ statement anywhere in the codebase (courses/views.py) continues to work
 unchanged, because this package re-exports the same name at the same
 import path.
 
-Migration steps for this file structure change (see deliverable notes):
-    1. Create the new folder: courses/services/
-    2. Move the existing courses/services.py content into:
-           courses/services/recommendation.py
-       (renamed, content otherwise byte-for-byte identical)
-    3. Place this file at:
-           courses/services/__init__.py
-    4. Add the new advisor module at:
-           courses/services/ai_learning_advisor.py
-    5. Delete the old flat courses/services.py file.
+Phase 5B adds StudyPlannerService to the same re-export pattern.
 
-After this change:
-    from .services import CourseRecommendationService   # still works
-    from .services import AILearningAdvisorService       # now also works
+After all phases:
+    from .services import CourseRecommendationService   # Phase 4C
+    from .services import AILearningAdvisorService       # Phase 5A
+    from .services import StudyPlannerService            # Phase 5B
 """
 
 from .recommendation import CourseRecommendationService
 from .ai_learning_advisor import AILearningAdvisorService
+from .study_planner import StudyPlannerService
 
 __all__ = [
     'CourseRecommendationService',
     'AILearningAdvisorService',
+    'StudyPlannerService',
 ]

@@ -1,0 +1,274 @@
+{% extends 'base.html' %}
+{% block title %}AI Study Planner{% endblock %}
+
+{% block content %}
+<div class="dashboard-layout">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+    <div class="sidebar-user">
+      <div class="sidebar-avatar">
+        {% if user.profile_picture %}
+          <img src="{{ user.profile_picture.url }}" alt="{{ user.get_full_name }}">
+        {% else %}
+          {{ user.first_name|first|upper }}{{ user.last_name|first|upper }}
+        {% endif %}
+      </div>
+      <div class="sidebar-name">{{ user.get_full_name|default:user.username }}</div>
+      <div class="sidebar-role">{{ user.get_role_display }}</div>
+    </div>
+    <ul class="sidebar-nav">
+      <li><a href="{% url 'student_dashboard' %}"><span class="nav-icon">🏠</span> Dashboard</a></li>
+      <li><a href="{% url 'course_list' %}"><span class="nav-icon">📚</span> Browse Courses</a></li>
+      <li><a href="{% url 'certificate_list' %}"><span class="nav-icon">🎓</span> Certificates</a></li>
+      <li><a href="{% url 'advisor_dashboard' %}"><span class="nav-icon">🧭</span> AI Advisor</a></li>
+      <li><a href="{% url 'study_planner' %}" class="active"><span class="nav-icon">🗓️</span> Study Planner</a></li>
+      <li><a href="{% url 'profile' %}"><span class="nav-icon">👤</span> My Profile</a></li>
+      <li><a href="{% url 'logout' %}"><span class="nav-icon">🚪</span> Sign Out</a></li>
+    </ul>
+  </aside>
+
+  <!-- ── Main ── -->
+  <div class="dashboard-main">
+
+    <div class="dashboard-header">
+      <h1>🗓️ AI Study Planner</h1>
+      <p>Your personalized study plan, generated from your learning activity.</p>
+    </div>
+
+    {% if not plan.has_enrollments %}
+
+      <!-- ── Empty state: no enrollments yet ── -->
+      <div class="empty-state"
+           style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);">
+        <div class="icon">📋</div>
+        <h3>No active courses yet.</h3>
+        <p>Enroll in a course to receive a personalized study plan tailored to your pace and goals.</p>
+        <a href="{% url 'course_list' %}" class="btn btn-primary" style="margin-top:16px;">
+          Browse Courses
+        </a>
+      </div>
+
+    {% else %}
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           1. STUDY SUMMARY CARD
+      ═══════════════════════════════════════════════════════════════ -->
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:var(--primary-l);color:var(--primary);">📚</div>
+          <div>
+            <div class="stat-card-num">{{ plan.summary.enrolled_courses_count }}</div>
+            <div class="stat-card-label">Enrolled Courses</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:#e8f8ef;color:var(--success);">✅</div>
+          <div>
+            <div class="stat-card-num">{{ plan.summary.completed_lessons_count }}</div>
+            <div class="stat-card-label">Completed Lessons</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:var(--gold-l);color:var(--gold);">📖</div>
+          <div>
+            <div class="stat-card-num">{{ plan.summary.remaining_lessons_count }}</div>
+            <div class="stat-card-label">Remaining Lessons</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:#fdecea;color:var(--danger);">🏆</div>
+          <div>
+            <div class="stat-card-num">{{ plan.summary.certificate_count }}</div>
+            <div class="stat-card-label">Certificates Earned</div>
+          </div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon" style="background:var(--primary-l);color:var(--primary);">📝</div>
+          <div>
+            <div class="stat-card-num">
+              {% if plan.summary.average_quiz_score is not None %}{{ plan.summary.average_quiz_score }}%{% else %}—{% endif %}
+            </div>
+            <div class="stat-card-label">Average Quiz Score</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;margin-bottom:28px;">
+
+        <!-- ═══════════════════════════════════════════════════════════
+             2. TODAY'S FOCUS
+        ═══════════════════════════════════════════════════════════ -->
+        <div style="background:var(--surface);border:1.5px solid rgba(26,107,94,.2);border-radius:var(--radius);padding:20px;">
+          <h3 style="font-size:1rem;display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+            🎯 Today's Focus
+          </h3>
+          {% if plan.todays_focus %}
+            <ul style="list-style:none;display:flex;flex-direction:column;gap:10px;">
+              {% for item in plan.todays_focus %}
+                <li style="display:flex;align-items:flex-start;gap:8px;font-size:.9rem;color:var(--text-2);line-height:1.6;">
+                  <span style="color:var(--primary);flex-shrink:0;">▸</span>
+                  <span>{{ item }}</span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p style="font-size:.88rem;color:var(--text-3);margin:0;">
+              Nothing urgent today — great work staying on track!
+            </p>
+          {% endif %}
+        </div>
+
+        <!-- ═══════════════════════════════════════════════════════════
+             3. WEEKLY GOALS
+        ═══════════════════════════════════════════════════════════ -->
+        <div style="background:var(--surface);border:1.5px solid var(--gold);border-radius:var(--radius);padding:20px;">
+          <h3 style="font-size:1rem;display:flex;align-items:center;gap:8px;margin-bottom:14px;">
+            📅 Weekly Goals
+          </h3>
+          {% if plan.weekly_goals %}
+            <ul style="list-style:none;display:flex;flex-direction:column;gap:10px;">
+              {% for goal in plan.weekly_goals %}
+                <li style="display:flex;align-items:flex-start;gap:8px;font-size:.9rem;color:var(--text-2);line-height:1.6;">
+                  <span style="color:var(--gold);flex-shrink:0;">✓</span>
+                  <span>{{ goal }}</span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p style="font-size:.88rem;color:var(--text-3);margin:0;">No specific goals this week.</p>
+          {% endif %}
+        </div>
+
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           4. SUGGESTED DAILY STUDY TIME
+      ═══════════════════════════════════════════════════════════════ -->
+      <div style="background:linear-gradient(135deg,var(--primary-l),var(--surface));border:1.5px solid rgba(26,107,94,.15);border-radius:var(--radius);padding:22px;margin-bottom:28px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;">
+        <div style="width:48px;height:48px;border-radius:10px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;">
+          ⏱️
+        </div>
+        <div style="flex:1;min-width:200px;">
+          <div style="font-size:.78rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;">Suggested Daily Study Time</div>
+          <div style="font-weight:700;color:var(--text);font-size:1.1rem;">
+            {{ plan.suggested_daily_minutes }} minutes / day
+          </div>
+          <div style="font-size:.85rem;color:var(--text-3);margin-top:2px;">
+            Based on your {{ plan.summary.enrolled_courses_count }} active course{{ plan.summary.enrolled_courses_count|pluralize }}.
+          </div>
+        </div>
+      </div>
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           5. PRIORITY COURSES
+      ═══════════════════════════════════════════════════════════════ -->
+      <div class="action-bar">
+        <h3>Priority Courses</h3>
+      </div>
+
+      {% if plan.priority_courses %}
+        <div class="table-wrap" style="margin-bottom:28px;">
+          <table>
+            <thead>
+              <tr>
+                <th>Course</th>
+                <th>Progress</th>
+                <th>Remaining Lessons</th>
+                <th>Next Lesson</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in plan.priority_courses %}
+                <tr>
+                  <td>
+                    <a href="{% url 'course_detail' row.course.slug %}"
+                       style="font-weight:600;font-size:.9rem;color:var(--primary);">
+                      {{ row.course.title }}
+                    </a>
+                    {% if row.progress_percentage >= 80 %}
+                      <span class="badge badge-gold" style="font-size:.7rem;margin-left:6px;">Near certificate</span>
+                    {% endif %}
+                  </td>
+                  <td>
+                    <div style="display:flex;align-items:center;gap:8px;">
+                      <div style="width:80px;height:7px;background:var(--surface-2);border-radius:4px;overflow:hidden;flex-shrink:0;">
+                        <div style="height:100%;width:{{ row.progress_percentage }}%;background:{% if row.progress_percentage >= 80 %}var(--success){% elif row.progress_percentage >= 50 %}var(--primary){% else %}var(--gold){% endif %};border-radius:4px;"></div>
+                      </div>
+                      <span style="font-weight:700;font-size:.84rem;">{{ row.progress_percentage }}%</span>
+                    </div>
+                  </td>
+                  <td><span class="badge badge-gray">{{ row.remaining_lessons }}</span></td>
+                  <td style="font-size:.85rem;color:var(--text-2);">
+                    {% if row.next_lesson %}{{ row.next_lesson.title }}{% else %}—{% endif %}
+                  </td>
+                  <td>
+                    {% if row.next_lesson %}
+                      <a href="{% url 'lesson_view' row.course.slug row.next_lesson.id %}"
+                         class="btn btn-sm btn-primary">
+                        Continue →
+                      </a>
+                    {% else %}
+                      <a href="{% url 'course_detail' row.course.slug %}" class="btn btn-sm btn-outline">
+                        View
+                      </a>
+                    {% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty-state" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);margin-bottom:28px;">
+          <div class="icon">🎉</div>
+          <h3>All caught up!</h3>
+          <p>You've completed every lesson in your enrolled courses. Consider enrolling in something new.</p>
+          <a href="{% url 'course_list' %}" class="btn btn-outline" style="margin-top:16px;">Browse Courses</a>
+        </div>
+      {% endif %}
+
+      <!-- ═══════════════════════════════════════════════════════════════
+           6. ESTIMATED COMPLETION DATES
+      ═══════════════════════════════════════════════════════════════ -->
+      <div class="action-bar">
+        <h3>Estimated Completion Dates</h3>
+      </div>
+
+      {% if plan.estimated_completions %}
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Course</th>
+                <th>Remaining Lessons</th>
+                <th>Estimated Completion</th>
+                <th>At Current Pace</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in plan.estimated_completions %}
+                <tr>
+                  <td style="font-weight:600;font-size:.88rem;color:var(--text);">{{ row.course.title }}</td>
+                  <td><span class="badge badge-gray">{{ row.remaining_lessons }}</span></td>
+                  <td style="font-weight:700;color:var(--primary);">{{ row.estimated_date|date:"F j, Y" }}</td>
+                  <td style="font-size:.85rem;color:var(--text-3);">
+                    ~{{ row.estimated_weeks }} week{{ row.estimated_weeks|pluralize }}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="empty-state" style="background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);">
+          <p style="font-size:.9rem;color:var(--text-3);margin:0;">No projections available right now.</p>
+        </div>
+      {% endif %}
+
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

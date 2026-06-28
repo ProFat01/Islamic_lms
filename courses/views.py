@@ -1,9 +1,9 @@
 """
 courses/views.py
 
-All existing Phase 1/2/3B/3D/3E/4A/4B/4B.1/4C views are preserved exactly.
-Phase 5A (AI Learning Advisor) adds advisor_dashboard — all analysis logic
-lives in courses/services/ai_learning_advisor.py, this view only calls it.
+All existing Phase 1/2/3B/3D/3E/4A/4B/4B.1/4C/5A views are preserved exactly.
+Phase 5B (AI Study Planner) adds study_planner — all planning logic lives
+in courses/services/study_planner.py, this view only calls it.
 """
 
 from django.contrib import messages
@@ -19,7 +19,7 @@ from assessments.models import Quiz, QuizAttempt
 
 from .forms import CourseForm, LessonForm, ReviewForm
 from .models import Category, Course, CourseCertificate, Enrollment, Lesson, LessonProgress, Review
-from .services import AILearningAdvisorService, CourseRecommendationService
+from .services import AILearningAdvisorService, CourseRecommendationService, StudyPlannerService
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1808,3 +1808,37 @@ def advisor_dashboard(request):
         'advice': advice,
     }
     return render(request, 'courses/advisor_dashboard.html', context)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 5B — Personalized AI Study Planner
+# ─────────────────────────────────────────────────────────────────────────────
+
+@login_required
+def study_planner(request):
+    """
+    AI Study Planner page — /courses/study-planner/
+
+    Security: @login_required + explicit role check, identical pattern to
+    advisor_dashboard (Phase 5A).
+      - Students: full access.
+      - Teachers: PermissionDenied (this page plans a *student's* study
+        schedule; it has no meaning for a teacher account).
+      - Anonymous: redirected to login by @login_required.
+
+    All planning logic lives in StudyPlannerService — this view does
+    nothing but call build_plan() and render the result, exactly mirroring
+    the existing architecture of CourseRecommendationService (Phase 4C)
+    and AILearningAdvisorService (Phase 5A).
+    """
+    if not request.user.is_student:
+        if request.user.is_teacher:
+            raise PermissionDenied
+        return redirect('home')
+
+    plan = StudyPlannerService().build_plan(request.user)
+
+    context = {
+        'plan': plan,
+    }
+    return render(request, 'courses/student/study_planner.html', context)

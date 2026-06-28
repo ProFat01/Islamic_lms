@@ -135,6 +135,25 @@
       </a>
     </div>
 
+    <!-- ── Phase 5B: AI Study Planner ── -->
+    <div style="background:var(--surface);border:1.5px solid var(--gold);border-radius:var(--radius);padding:18px 22px;margin-bottom:28px;display:flex;align-items:center;gap:18px;flex-wrap:wrap;">
+      <div style="width:48px;height:48px;border-radius:10px;background:var(--gold);color:#fff;display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;">
+        🗓️
+      </div>
+      <div style="flex:1;min-width:200px;">
+        <div style="font-size:.78rem;color:var(--text-3);text-transform:uppercase;letter-spacing:.05em;margin-bottom:2px;">AI Study Planner</div>
+        <div style="font-weight:700;color:var(--text);">
+          Get your personalized study plan
+        </div>
+        <div style="font-size:.85rem;color:var(--text-3);margin-top:2px;">
+          Today's focus, weekly goals, and estimated completion dates.
+        </div>
+      </div>
+      <a href="{% url 'study_planner' %}" class="btn btn-gold btn-sm">
+        View My Plan →
+      </a>
+    </div>
+
     <!-- ── Phase 4A: Recent Activity ── -->
     <div class="action-bar">
       <h3>Recent Activity</h3>
